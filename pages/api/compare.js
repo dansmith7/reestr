@@ -1,0 +1,61 @@
+import { ensureSchema, serializeProject } from '../../lib/db';
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' });
+  const { date } = req.query;
+  if (!date) return res.status(400).json({ error: 'no date' });
+  try {
+    const p = await ensureSchema();
+    const totalRes = await p.query('SELECT COUNT(*)::int AS c FROM stages');
+    const total = totalRes.rows[0].c;
+    const projects = (
+      await p.query('SELECT * FROM projects WHERE archived = false ORDER BY id ASC')
+    ).rows;
+
+    const result = [];
+    for (const proj of projects) {
+      const current = await serializeProject(p, proj);
+
+      const pastRes = await p.query(
+        `SELECT sl.*, s.name AS stage_name, s.position AS stage_position
+         FROM status_log sl JOIN stages s ON s.id = sl.stage_id
+         WHERE sl.project_id = $1 AND sl.created_at <= ($2::date + interval '1 day')
+         ORDER BY sl.created_at DESC, sl.id DESC LIMIT 1`,
+        [proj.id, date]
+      );
+      const past = pastRes.rows[0];
+
+      const betweenRes = await p.query(
+        `SELECT sl.*, s.name AS stage_name
+         FROM status_log sl JOIN stages s ON s.id = sl.stage_id
+         WHERE sl.project_id = $1 AND sl.created_at > ($2::date + interval '1 day')
+         ORDER BY sl.created_at ASC`,
+        [proj.id, date]
+      );
+
+      result.push({
+        project: proj.name,
+        id: proj.id,
+        past_status: past ? past.stage_name : 'нет данных на эту дату',
+        past_stage_index: past ? past.stage_position : null,
+        current_status: current.status,
+        current_stage_index: current.stage_index,
+        moved: !!(
+          past &&
+          current.stage_index != null &&
+          current.stage_index !== past.stage_position
+        ),
+        entries_between: betweenRes.rows.map((r) => ({
+          date: r.created_at,
+          stage: r.stage_name,
+          comment: r.comment,
+          timing: r.timing,
+        })),
+      });
+    }
+
+    res.status(200).json({ compare: result, total_stages: total });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
