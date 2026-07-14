@@ -258,10 +258,22 @@ document.getElementById('todayBadge').textContent =
   new Date().toLocaleDateString('ru-RU', {day:'numeric', month:'long', year:'numeric'});
 
 async function loadData(){
-  const res = await fetch('/api/data');
-  STATE = await res.json();
-  renderStages();
-  renderProjects();
+  try {
+    const res = await fetch('/api/data', { credentials: 'same-origin' });
+    const data = await res.json();
+    if(!res.ok || !Array.isArray(data.stages) || !Array.isArray(data.projects)){
+      throw new Error(data.error || 'API вернул неожиданный ответ');
+    }
+    STATE = data;
+    renderStages();
+    renderProjects();
+  } catch (err) {
+    document.getElementById('stageCount').textContent = 'ошибка';
+    document.getElementById('stageTrack').innerHTML =
+      '<div style="font-size:12px;color:#D8433A;font-weight:700;">Не удалось загрузить данные из API. Откройте /api/health, чтобы проверить подключение базы.</div>';
+    document.getElementById('projectsList').innerHTML =
+      `<div style="grid-column:1/-1;color:#D8433A;font-weight:700;">Ошибка загрузки данных: ${err.message}</div>`;
+  }
 }
 
 function renderStages(){
