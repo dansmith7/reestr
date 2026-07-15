@@ -259,6 +259,34 @@
 
 <script>
 let STATE = { stages: [], projects: [] };
+const IS_LOCAL_PREVIEW =
+  window.location.protocol === 'file:' ||
+  ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+const DEMO_STAGES = [
+  "Обсуждение условий проекта",
+  "Подготовка КД",
+  "Производство тестовой партии и подготовка КД",
+  "Производство тестовой партии завершено",
+  "Подготовка КД завершена",
+  "Заявка в ГИСП подготовлена",
+  "Заявка в ГИСП подана",
+  "Камеральная проверка",
+  "Камеральная проверка пройдена",
+  "Камеральная проверка на одобрении ЦА ТПП",
+  "Планирование выездной проверки",
+  "Выездная проверка завершена",
+  "Акт экспертизы готовится",
+  "Акт экспертизы подготовлен",
+  "Акт экспертизы на рассмотрении в МПТ",
+];
+const DEMO_PROJECTS = [
+  ["Доработка SR", "Камеральная проверка на одобрении ЦА ТПП", null, "ждём ОС от эксперта"],
+  ["Вайфай", "Производство тестовой партии и подготовка КД", "готовность плат в середине августа", null],
+  ["Аудиоплата", "Производство тестовой партии и подготовка КД", "готовность плат в середине августа", null],
+  ["Планшет", "Обсуждение условий проекта", null, null],
+  ["ОПС", "Заявка в ГИСП подготовлена", null, "ждём ОС от эксперта"],
+  ["LED", "Обсуждение условий проекта", null, "ждём ОС от эксперта"],
+];
 
 function todayIso(){
   return new Date().toISOString().slice(0,10);
@@ -281,9 +309,41 @@ document.getElementById('todayBadge').textContent =
   new Date().toLocaleDateString('ru-RU', {day:'numeric', month:'long', year:'numeric'});
 document.getElementById('snapshotDate').value = todayIso();
 
+function buildStaticPreviewState(date){
+  const stages = DEMO_STAGES.map((name, i) => ({ id: i + 1, name, position: i }));
+  const stageByName = Object.fromEntries(stages.map(s => [s.name, s]));
+  const updatedAt = (date || todayIso()) + 'T12:00:00.000Z';
+  const projects = DEMO_PROJECTS.map(([name, status, timing, comment], i) => {
+    const stage = stageByName[status];
+    const pct = Math.round(((stage.position + 1) / stages.length) * 100);
+    return {
+      id: i + 1,
+      name,
+      status,
+      stage_id: stage.id,
+      stage_index: stage.position,
+      timing,
+      comment,
+      updated_at: updatedAt,
+      pct,
+      total_stages: stages.length,
+      stale: false,
+      weeks_since_update: 0,
+    };
+  });
+  return { stages, projects, stale_weeks: 2, snapshot_date: date || todayIso(), static_preview: true };
+}
+
 async function loadData(date){
   try {
     const selectedDate = date || document.getElementById('snapshotDate').value || todayIso();
+    if(window.location.protocol === 'file:'){
+      STATE = buildStaticPreviewState(selectedDate);
+      document.getElementById('snapshotDate').value = selectedDate;
+      renderStages();
+      renderProjects();
+      return;
+    }
     const res = await fetch('/api/data?date=' + encodeURIComponent(selectedDate), { credentials: 'same-origin' });
     const data = await res.json();
     if(!res.ok || !Array.isArray(data.stages) || !Array.isArray(data.projects)){
@@ -295,6 +355,13 @@ async function loadData(date){
     renderStages();
     renderProjects();
   } catch (err) {
+    if(IS_LOCAL_PREVIEW){
+      STATE = buildStaticPreviewState(date || document.getElementById('snapshotDate').value || todayIso());
+      document.getElementById('snapshotDate').value = STATE.snapshot_date;
+      renderStages();
+      renderProjects();
+      return;
+    }
     document.getElementById('stageCount').textContent = 'ошибка';
     document.getElementById('stageTrack').innerHTML =
       '<div style="font-size:12px;color:#D8433A;font-weight:700;">Не удалось загрузить данные из API. Откройте <a href="/admin">админку</a>, чтобы проверить и заполнить базу.</div>';
@@ -306,7 +373,10 @@ async function loadData(date){
 function renderStages(){
   const track = document.getElementById('stageTrack');
   document.getElementById('stageCount').textContent = STATE.stages.length + " статусов";
-  track.innerHTML = STATE.stages.map((s,i)=>`
+  const previewNote = STATE.static_preview
+    ? '<div style="min-width:100%;font-size:12px;color:#8b8b8b;font-weight:700;margin-bottom:12px;">Локальный preview без сервера: данные показаны для просмотра, сохранение работает на Vercel/Next.js.</div>'
+    : '';
+  track.innerHTML = previewNote + STATE.stages.map((s,i)=>`
     <div class="stage" data-idx="${i}">
       <span class="num">${i+1}</span>
       <div class="dot"></div>
@@ -398,6 +468,7 @@ function renderProjects(){
   });
   list.querySelectorAll('[data-action="delete-project"]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
+      if(STATE.static_preview){ alert('Это локальный preview. Чтобы удалять проекты, откройте приложение через Vercel или Next.js dev server.'); return; }
       if(!confirm('Удалить проект? История сохранится в базе, но проект исчезнет из списка.')) return;
       await fetch('/api/projects/'+btn.dataset.id, {method:'DELETE'});
       loadData(STATE.snapshot_date);
@@ -406,6 +477,18 @@ function renderProjects(){
 }
 
 async function loadHistory(pid){
+  if(STATE.static_preview){
+    const p = STATE.projects.find(x=>String(x.id)===String(pid));
+    const el = document.getElementById('history-'+pid);
+    el.innerHTML = `
+      <div class="history-item">
+        <div class="h-date">${fmtDate(p.updated_at)}</div>
+        <div class="h-stage">${p.status}</div>
+        ${p.timing ? `<div class="h-comment">Сроки: ${p.timing}</div>` : ''}
+        ${p.comment ? `<div class="h-comment">${p.comment}</div>` : ''}
+      </div>`;
+    return;
+  }
   const res = await fetch('/api/history/'+pid);
   const data = await res.json();
   const el = document.getElementById('history-'+pid);
@@ -441,6 +524,7 @@ function openStatusModal(pid){
   openModal('modalStatus');
 }
 document.getElementById('btnSaveStatus').addEventListener('click', async ()=>{
+  if(STATE.static_preview){ alert('Это локальный preview. Чтобы сохранять статусы, откройте приложение через Vercel или Next.js dev server.'); return; }
   const pid = document.getElementById('statusProjectId').value;
   const stage_id = parseInt(document.getElementById('statusStageSelect').value);
   const timing = document.getElementById('statusTiming').value;
@@ -463,6 +547,7 @@ document.getElementById('btnAddProject').addEventListener('click', ()=>{
   openModal('modalNewProject');
 });
 document.getElementById('btnSaveNewProject').addEventListener('click', async ()=>{
+  if(STATE.static_preview){ alert('Это локальный preview. Чтобы создавать проекты, откройте приложение через Vercel или Next.js dev server.'); return; }
   const name = document.getElementById('newProjectName').value.trim();
   const stage_id = parseInt(document.getElementById('newProjectStage').value);
   const comment = document.getElementById('newProjectComment').value;
@@ -492,18 +577,22 @@ function renderStageMgmt(){
   el.querySelectorAll('.stage-mgmt-row').forEach(row=>{
     const sid = row.dataset.id;
     row.querySelector('input').addEventListener('change', async (e)=>{
+      if(STATE.static_preview){ alert('Это локальный preview. Чтобы менять этапы, откройте приложение через Vercel или Next.js dev server.'); renderStageMgmt(); return; }
       await fetch('/api/stages/'+sid, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: e.target.value})});
       await loadData(STATE.snapshot_date); renderStageMgmt();
     });
     row.querySelector('[data-action="up"]').addEventListener('click', async ()=>{
+      if(STATE.static_preview){ alert('Это локальный preview. Чтобы менять этапы, откройте приложение через Vercel или Next.js dev server.'); return; }
       await fetch('/api/stages/'+sid+'/move', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({direction:'up'})});
       await loadData(STATE.snapshot_date); renderStageMgmt();
     });
     row.querySelector('[data-action="down"]').addEventListener('click', async ()=>{
+      if(STATE.static_preview){ alert('Это локальный preview. Чтобы менять этапы, откройте приложение через Vercel или Next.js dev server.'); return; }
       await fetch('/api/stages/'+sid+'/move', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({direction:'down'})});
       await loadData(STATE.snapshot_date); renderStageMgmt();
     });
     row.querySelector('[data-action="del"]').addEventListener('click', async ()=>{
+      if(STATE.static_preview){ alert('Это локальный preview. Чтобы удалять этапы, откройте приложение через Vercel или Next.js dev server.'); return; }
       if(!confirm('Удалить этап?')) return;
       const res = await fetch('/api/stages/'+sid, {method:'DELETE'});
       const d = await res.json();
@@ -514,6 +603,7 @@ function renderStageMgmt(){
 }
 document.getElementById('btnManageStages').addEventListener('click', ()=>{ renderStageMgmt(); openModal('modalStages'); });
 document.getElementById('btnAddStage').addEventListener('click', async ()=>{
+  if(STATE.static_preview){ alert('Это локальный preview. Чтобы менять этапы, откройте приложение через Vercel или Next.js dev server.'); return; }
   const name = document.getElementById('newStageName').value.trim();
   if(!name) return;
   await fetch('/api/stages', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
@@ -545,6 +635,11 @@ document.getElementById('btnRunCompare').addEventListener('click', async ()=>{
 });
 
 async function runCompare(date, currentDate){
+  if(STATE.static_preview){
+    document.getElementById('compareResult').innerHTML =
+      '<div style="color:#8b8b8b;font-weight:700;">В локальном preview сравнение показывает демо-данные. Реальное сравнение работает через API на Vercel/Next.js.</div>';
+    return;
+  }
   const res = await fetch('/api/compare?date='+encodeURIComponent(date)+'&current_date='+encodeURIComponent(currentDate));
   const data = await res.json();
   const el = document.getElementById('compareResult');
