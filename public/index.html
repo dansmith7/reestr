@@ -119,13 +119,17 @@
   .stage-mgmt-row input{flex:1;}
   .stage-mgmt-row .mini-btn{border:none;background:var(--grey-bg);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:12px;flex-shrink:0;}
 
-  .compare-result{margin-top:16px;}
-  .compare-item{padding:10px 0;border-bottom:1px solid var(--grey-bg);font-size:13px;}
-  .compare-item .c-name{font-weight:800;color:var(--text-dark);}
-  .compare-item .c-move{font-size:12px;color:var(--green-dark);font-weight:700;}
-  .compare-item .c-nomove{font-size:12px;color:#9b9b9b;}
-  .compare-item .c-comment{font-size:12px;color:var(--text);margin-top:4px;padding-left:8px;border-left:2px solid var(--border);}
   .date-input{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-family:inherit;font-size:13px;font-weight:700;color:var(--text-dark);}
+
+  .compare-chip{display:flex;align-items:center;gap:8px;background:var(--white);border:1px solid var(--border);border-radius:999px;padding:6px 8px 6px 14px;font-size:12.5px;font-weight:700;color:var(--text-dark);}
+  .compare-chip button{border:none;background:var(--grey-bg);color:#8b8b8b;border-radius:999px;width:22px;height:22px;cursor:pointer;font-size:12px;line-height:1;}
+  .compare-chip button:hover{color:var(--text-dark);}
+
+  .diff-row{margin-bottom:10px;}
+  .diff-badge{font-size:11px;font-weight:800;padding:4px 9px;border-radius:7px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
+  .diff-badge.moved{background:var(--green-soft);color:var(--green-dark);}
+  .diff-badge.same{background:var(--grey-bg);color:#9b9b9b;}
+  .diff-badge.stuck{background:var(--red-soft);color:var(--red);}
 
   @media (max-width:760px){ .projects{grid-template-columns:1fr;} }
 </style>
@@ -144,9 +148,12 @@
     <div class="header__right">
       <a class="btn btn-secondary" href="/admin">Админка</a>
       <input class="date-input" type="date" id="snapshotDate">
-      <button class="btn btn-secondary" id="btnLoadSnapshot">Показать срез</button>
       <button class="btn btn-secondary" id="btnCompareWeek">Сравнить с прошлой неделей</button>
       <button class="btn btn-secondary" id="btnCompare">Сравнить с датой</button>
+      <div class="compare-chip" id="compareChip" style="display:none;">
+        <span id="compareChipText"></span>
+        <button id="btnClearCompare" title="Убрать сравнение">✕</button>
+      </div>
       <div class="badge-date" id="todayBadge"></div>
     </div>
   </div>
@@ -253,12 +260,12 @@
       <button class="btn btn-secondary" data-close="modalCompare">Закрыть</button>
       <button class="btn btn-primary" id="btnRunCompare">Сравнить</button>
     </div>
-    <div class="compare-result" id="compareResult"></div>
   </div>
 </div>
 
 <script>
 let STATE = { stages: [], projects: [] };
+let COMPARE = null;
 const IS_LOCAL_PREVIEW =
   window.location.protocol === 'file:' ||
   ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
@@ -389,6 +396,22 @@ function stageOptionsHtml(selectedId){
   return STATE.stages.map(s => `<option value="${s.id}" ${s.id===selectedId?'selected':''}>${s.position+1}. ${s.name}</option>`).join('');
 }
 
+function diffBadgeHtml(p){
+  if(!COMPARE) return '';
+  const c = COMPARE.map[p.id];
+  if(!c) return '';
+  if(c.past_stage_index == null){
+    return '<span class="diff-badge moved">🆕 новый проект</span>';
+  }
+  if(c.moved){
+    return `<span class="diff-badge moved" title="было: «${c.past_status}» → стало: «${c.current_status}»">▲ продвинулся</span>`;
+  }
+  if(p.stale){
+    return '<span class="diff-badge stuck">⚠ застрял</span>';
+  }
+  return '<span class="diff-badge same">— без изменений</span>';
+}
+
 function renderProjects(){
   const list = document.getElementById('projectsList');
   if(!STATE.projects.length){
@@ -403,6 +426,7 @@ function renderProjects(){
         <div class="project-name">${p.name}</div>
         <div class="stage-tag">${p.stage_index!=null ? (p.stage_index+1)+'/'+total : '—'}</div>
       </div>
+      ${COMPARE ? `<div class="diff-row">${diffBadgeHtml(p)}</div>` : ''}
       <div class="project-status">${p.status || 'нет статуса'}</div>
       <div class="progress-row">
         <div class="progress-bar"><div class="progress-fill" style="width:${p.pct}%"></div></div>
@@ -612,18 +636,11 @@ document.getElementById('btnAddStage').addEventListener('click', async ()=>{
 });
 
 // ---- Compare ----
-document.getElementById('btnLoadSnapshot').addEventListener('click', ()=>{
-  loadData(document.getElementById('snapshotDate').value);
-});
 document.getElementById('btnCompareWeek').addEventListener('click', ()=>{
   const current = document.getElementById('snapshotDate').value || todayIso();
-  document.getElementById('compareResult').innerHTML = '';
-  document.getElementById('compareDate').value = addDaysIso(current, -7);
-  openModal('modalCompare');
-  runCompare(document.getElementById('compareDate').value, current);
+  applyCompare(addDaysIso(current, -7), current);
 });
 document.getElementById('btnCompare').addEventListener('click', ()=>{
-  document.getElementById('compareResult').innerHTML = '';
   const current = document.getElementById('snapshotDate').value || todayIso();
   document.getElementById('compareDate').value = addDaysIso(current, -30);
   openModal('modalCompare');
@@ -631,28 +648,74 @@ document.getElementById('btnCompare').addEventListener('click', ()=>{
 document.getElementById('btnRunCompare').addEventListener('click', async ()=>{
   const date = document.getElementById('compareDate').value;
   if(!date) return;
-  await runCompare(date, document.getElementById('snapshotDate').value || todayIso());
+  const current = document.getElementById('snapshotDate').value || todayIso();
+  closeModal('modalCompare');
+  await applyCompare(date, current);
 });
+document.getElementById('btnClearCompare').addEventListener('click', clearCompare);
 
-async function runCompare(date, currentDate){
+function fmtDateShort(iso){
+  if(!iso) return '';
+  const d = new Date(iso+'T12:00:00');
+  return d.toLocaleDateString('ru-RU', {day:'numeric', month:'long', year:'numeric'});
+}
+
+function updateCompareChip(){
+  const chip = document.getElementById('compareChip');
+  if(!COMPARE){ chip.style.display = 'none'; return; }
+  chip.style.display = 'flex';
+  document.getElementById('compareChipText').textContent = 'Сравнение с ' + fmtDateShort(COMPARE.date);
+}
+
+let DEMO_STALE_ID = null;
+
+function buildStaticPreviewCompare(date, currentDate){
+  const map = {};
+  DEMO_STALE_ID = null;
+  STATE.projects.forEach((p, i) => {
+    if(i === 0){
+      const pastIdx = Math.max(0, p.stage_index - 2);
+      map[p.id] = { id: p.id, moved: true, past_stage_index: pastIdx, past_status: STATE.stages[pastIdx].name, current_status: p.status };
+    } else if(i === 1){
+      const pastIdx = Math.max(0, p.stage_index - 1);
+      map[p.id] = { id: p.id, moved: true, past_stage_index: pastIdx, past_status: STATE.stages[pastIdx].name, current_status: p.status };
+    } else if(i === 2){
+      p.stale = true;
+      DEMO_STALE_ID = p.id;
+      map[p.id] = { id: p.id, moved: false, past_stage_index: p.stage_index, past_status: p.status, current_status: p.status };
+    } else if(i === 3){
+      map[p.id] = { id: p.id, moved: false, past_stage_index: null, past_status: 'нет данных на эту дату', current_status: p.status };
+    } else {
+      map[p.id] = { id: p.id, moved: false, past_stage_index: p.stage_index, past_status: p.status, current_status: p.status };
+    }
+  });
+  return { date, current_date: currentDate, map };
+}
+
+async function applyCompare(date, currentDate){
   if(STATE.static_preview){
-    document.getElementById('compareResult').innerHTML =
-      '<div style="color:#8b8b8b;font-weight:700;">В локальном preview сравнение показывает демо-данные. Реальное сравнение работает через API на Vercel/Next.js.</div>';
+    COMPARE = buildStaticPreviewCompare(date, currentDate);
+    updateCompareChip();
+    renderProjects();
     return;
   }
   const res = await fetch('/api/compare?date='+encodeURIComponent(date)+'&current_date='+encodeURIComponent(currentDate));
   const data = await res.json();
-  const el = document.getElementById('compareResult');
-  if(data.error){ el.innerHTML = `<div style="color:#D8433A;font-weight:700;">${data.error}</div>`; return; }
-  el.innerHTML = data.compare.map(c => `
-    <div class="compare-item">
-      <div class="c-name">${c.project}</div>
-      ${c.moved
-        ? `<div class="c-move">сдвинулся: «${c.past_status}» → «${c.current_status}»</div>`
-        : `<div class="c-nomove">без изменений: «${c.current_status}»</div>`}
-      ${c.entries_between.map(e => `<div class="c-comment"><b>${fmtDate(e.date)}</b> — ${e.stage}${e.comment ? ': '+e.comment : ''}</div>`).join('')}
-    </div>
-  `).join('') || '<div style="color:#c2c2c2;">нет проектов</div>';
+  if(data.error){ alert(data.error); return; }
+  COMPARE = { date, current_date: currentDate, map: Object.fromEntries(data.compare.map(c=>[c.id, c])) };
+  updateCompareChip();
+  renderProjects();
+}
+
+function clearCompare(){
+  COMPARE = null;
+  if(DEMO_STALE_ID != null){
+    const p = STATE.projects.find(x => x.id === DEMO_STALE_ID);
+    if(p) p.stale = false;
+    DEMO_STALE_ID = null;
+  }
+  updateCompareChip();
+  renderProjects();
 }
 
 loadData();
