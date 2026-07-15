@@ -1,25 +1,30 @@
-import { ensureSchema, serializeProject } from '../../lib/db';
+import { ensureSchema, normalizeSnapshotDate, serializeProjectAt } from '../../lib/db';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' });
-  const { date } = req.query;
+  const date = normalizeSnapshotDate(req.query.date);
+  const currentDate = normalizeSnapshotDate(req.query.current_date);
   if (!date) return res.status(400).json({ error: 'no date' });
   try {
     const p = await ensureSchema();
     const totalRes = await p.query('SELECT COUNT(*)::int AS c FROM stages');
     const total = totalRes.rows[0].c;
-    const projects = (
-      await p.query('SELECT * FROM projects WHERE archived = false ORDER BY id ASC')
-    ).rows;
+    const projects = (await p.query(
+      `SELECT * FROM projects
+       WHERE archived = false
+         AND ($1::text IS NULL OR created_at < ($1::date + interval '1 day'))
+       ORDER BY id ASC`,
+      [currentDate]
+    )).rows;
 
     const result = [];
     for (const proj of projects) {
-      const current = await serializeProject(p, proj);
+      const current = await serializeProjectAt(p, proj, currentDate);
 
       const pastRes = await p.query(
         `SELECT sl.*, s.name AS stage_name, s.position AS stage_position
          FROM status_log sl JOIN stages s ON s.id = sl.stage_id
-         WHERE sl.project_id = $1 AND sl.created_at <= ($2::date + interval '1 day')
+         WHERE sl.project_id = $1 AND sl.created_at < ($2::date + interval '1 day')
          ORDER BY sl.created_at DESC, sl.id DESC LIMIT 1`,
         [proj.id, date]
       );
@@ -28,9 +33,11 @@ export default async function handler(req, res) {
       const betweenRes = await p.query(
         `SELECT sl.*, s.name AS stage_name
          FROM status_log sl JOIN stages s ON s.id = sl.stage_id
-         WHERE sl.project_id = $1 AND sl.created_at > ($2::date + interval '1 day')
+         WHERE sl.project_id = $1
+           AND sl.created_at >= ($2::date + interval '1 day')
+           AND ($3::text IS NULL OR sl.created_at < ($3::date + interval '1 day'))
          ORDER BY sl.created_at ASC`,
-        [proj.id, date]
+        [proj.id, date, currentDate]
       );
 
       result.push({
@@ -54,7 +61,7 @@ export default async function handler(req, res) {
       });
     }
 
-    res.status(200).json({ compare: result, total_stages: total });
+    res.status(200).json({ compare: result, total_stages: total, date, current_date: currentDate });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

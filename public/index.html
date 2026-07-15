@@ -125,6 +125,7 @@
   .compare-item .c-move{font-size:12px;color:var(--green-dark);font-weight:700;}
   .compare-item .c-nomove{font-size:12px;color:#9b9b9b;}
   .compare-item .c-comment{font-size:12px;color:var(--text);margin-top:4px;padding-left:8px;border-left:2px solid var(--border);}
+  .date-input{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-family:inherit;font-size:13px;font-weight:700;color:var(--text-dark);}
 
   @media (max-width:760px){ .projects{grid-template-columns:1fr;} }
 </style>
@@ -141,6 +142,10 @@
       </div>
     </div>
     <div class="header__right">
+      <a class="btn btn-secondary" href="/admin">Админка</a>
+      <input class="date-input" type="date" id="snapshotDate">
+      <button class="btn btn-secondary" id="btnLoadSnapshot">Показать срез</button>
+      <button class="btn btn-secondary" id="btnCompareWeek">Сравнить с прошлой неделей</button>
       <button class="btn btn-secondary" id="btnCompare">Сравнить с датой</button>
       <div class="badge-date" id="todayBadge"></div>
     </div>
@@ -171,6 +176,10 @@
     <h2>Обновить статус</h2>
     <input type="hidden" id="statusProjectId">
     <div class="field">
+      <label>Дата статуса</label>
+      <input type="date" id="statusDate">
+    </div>
+    <div class="field">
       <label>Этап</label>
       <select id="statusStageSelect"></select>
     </div>
@@ -200,6 +209,10 @@
     <div class="field">
       <label>Начальный этап</label>
       <select id="newProjectStage"></select>
+    </div>
+    <div class="field">
+      <label>Дата появления проекта</label>
+      <input type="date" id="newProjectDate">
     </div>
     <div class="field">
       <label>Комментарий (необязательно)</label>
@@ -247,6 +260,16 @@
 <script>
 let STATE = { stages: [], projects: [] };
 
+function todayIso(){
+  return new Date().toISOString().slice(0,10);
+}
+
+function addDaysIso(date, days){
+  const d = new Date(date + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0,10);
+}
+
 function fmtDate(iso){
   if(!iso) return '';
   const d = new Date(iso);
@@ -256,21 +279,25 @@ function fmtDate(iso){
 
 document.getElementById('todayBadge').textContent =
   new Date().toLocaleDateString('ru-RU', {day:'numeric', month:'long', year:'numeric'});
+document.getElementById('snapshotDate').value = todayIso();
 
-async function loadData(){
+async function loadData(date){
   try {
-    const res = await fetch('/api/data', { credentials: 'same-origin' });
+    const selectedDate = date || document.getElementById('snapshotDate').value || todayIso();
+    const res = await fetch('/api/data?date=' + encodeURIComponent(selectedDate), { credentials: 'same-origin' });
     const data = await res.json();
     if(!res.ok || !Array.isArray(data.stages) || !Array.isArray(data.projects)){
       throw new Error(data.error || 'API вернул неожиданный ответ');
     }
     STATE = data;
+    STATE.snapshot_date = selectedDate;
+    document.getElementById('snapshotDate').value = selectedDate;
     renderStages();
     renderProjects();
   } catch (err) {
     document.getElementById('stageCount').textContent = 'ошибка';
     document.getElementById('stageTrack').innerHTML =
-      '<div style="font-size:12px;color:#D8433A;font-weight:700;">Не удалось загрузить данные из API. Откройте /api/health, чтобы проверить подключение базы.</div>';
+      '<div style="font-size:12px;color:#D8433A;font-weight:700;">Не удалось загрузить данные из API. Откройте <a href="/admin">админку</a>, чтобы проверить и заполнить базу.</div>';
     document.getElementById('projectsList').innerHTML =
       `<div style="grid-column:1/-1;color:#D8433A;font-weight:700;">Ошибка загрузки данных: ${err.message}</div>`;
   }
@@ -294,6 +321,10 @@ function stageOptionsHtml(selectedId){
 
 function renderProjects(){
   const list = document.getElementById('projectsList');
+  if(!STATE.projects.length){
+    list.innerHTML = '<div style="grid-column:1/-1;color:#b0b0b0;font-weight:700;text-align:center;padding:40px 0;">На эту дату проектов нет. Добавьте проект или внесите стартовые данные через админку.</div>';
+    return;
+  }
   list.innerHTML = STATE.projects.map(p => {
     const total = p.total_stages || STATE.stages.length;
     return `
@@ -369,7 +400,7 @@ function renderProjects(){
     btn.addEventListener('click', async ()=>{
       if(!confirm('Удалить проект? История сохранится в базе, но проект исчезнет из списка.')) return;
       await fetch('/api/projects/'+btn.dataset.id, {method:'DELETE'});
-      loadData();
+      loadData(STATE.snapshot_date);
     });
   });
 }
@@ -403,6 +434,7 @@ document.querySelectorAll('.modal-overlay').forEach(ov=>{
 function openStatusModal(pid){
   const p = STATE.projects.find(x=>String(x.id)===String(pid));
   document.getElementById('statusProjectId').value = pid;
+  document.getElementById('statusDate').value = STATE.snapshot_date || todayIso();
   document.getElementById('statusStageSelect').innerHTML = stageOptionsHtml(p ? p.stage_id : null);
   document.getElementById('statusTiming').value = p && p.timing ? p.timing : '';
   document.getElementById('statusComment').value = '';
@@ -413,18 +445,20 @@ document.getElementById('btnSaveStatus').addEventListener('click', async ()=>{
   const stage_id = parseInt(document.getElementById('statusStageSelect').value);
   const timing = document.getElementById('statusTiming').value;
   const comment = document.getElementById('statusComment').value;
+  const effective_date = document.getElementById('statusDate').value;
   await fetch('/api/status', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({project_id: parseInt(pid), stage_id, timing, comment})
+    body: JSON.stringify({project_id: parseInt(pid), stage_id, timing, comment, effective_date})
   });
   closeModal('modalStatus');
-  await loadData();
+  await loadData(effective_date);
 });
 
 // ---- New project ----
 document.getElementById('btnAddProject').addEventListener('click', ()=>{
   document.getElementById('newProjectName').value = '';
   document.getElementById('newProjectComment').value = '';
+  document.getElementById('newProjectDate').value = STATE.snapshot_date || todayIso();
   document.getElementById('newProjectStage').innerHTML = stageOptionsHtml(STATE.stages[0] ? STATE.stages[0].id : null);
   openModal('modalNewProject');
 });
@@ -432,13 +466,14 @@ document.getElementById('btnSaveNewProject').addEventListener('click', async ()=
   const name = document.getElementById('newProjectName').value.trim();
   const stage_id = parseInt(document.getElementById('newProjectStage').value);
   const comment = document.getElementById('newProjectComment').value;
+  const effective_date = document.getElementById('newProjectDate').value;
   if(!name){ alert('Укажите название проекта'); return; }
   await fetch('/api/projects', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({name, stage_id, comment})
+    body: JSON.stringify({name, stage_id, comment, effective_date})
   });
   closeModal('modalNewProject');
-  await loadData();
+  await loadData(effective_date);
 });
 
 // ---- Manage stages ----
@@ -458,22 +493,22 @@ function renderStageMgmt(){
     const sid = row.dataset.id;
     row.querySelector('input').addEventListener('change', async (e)=>{
       await fetch('/api/stages/'+sid, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: e.target.value})});
-      await loadData(); renderStageMgmt();
+      await loadData(STATE.snapshot_date); renderStageMgmt();
     });
     row.querySelector('[data-action="up"]').addEventListener('click', async ()=>{
       await fetch('/api/stages/'+sid+'/move', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({direction:'up'})});
-      await loadData(); renderStageMgmt();
+      await loadData(STATE.snapshot_date); renderStageMgmt();
     });
     row.querySelector('[data-action="down"]').addEventListener('click', async ()=>{
       await fetch('/api/stages/'+sid+'/move', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({direction:'down'})});
-      await loadData(); renderStageMgmt();
+      await loadData(STATE.snapshot_date); renderStageMgmt();
     });
     row.querySelector('[data-action="del"]').addEventListener('click', async ()=>{
       if(!confirm('Удалить этап?')) return;
       const res = await fetch('/api/stages/'+sid, {method:'DELETE'});
       const d = await res.json();
       if(d.error){ alert(d.error); return; }
-      await loadData(); renderStageMgmt();
+      await loadData(STATE.snapshot_date); renderStageMgmt();
     });
   });
 }
@@ -483,22 +518,37 @@ document.getElementById('btnAddStage').addEventListener('click', async ()=>{
   if(!name) return;
   await fetch('/api/stages', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
   document.getElementById('newStageName').value = '';
-  await loadData(); renderStageMgmt();
+  await loadData(STATE.snapshot_date); renderStageMgmt();
 });
 
 // ---- Compare ----
+document.getElementById('btnLoadSnapshot').addEventListener('click', ()=>{
+  loadData(document.getElementById('snapshotDate').value);
+});
+document.getElementById('btnCompareWeek').addEventListener('click', ()=>{
+  const current = document.getElementById('snapshotDate').value || todayIso();
+  document.getElementById('compareResult').innerHTML = '';
+  document.getElementById('compareDate').value = addDaysIso(current, -7);
+  openModal('modalCompare');
+  runCompare(document.getElementById('compareDate').value, current);
+});
 document.getElementById('btnCompare').addEventListener('click', ()=>{
   document.getElementById('compareResult').innerHTML = '';
-  const d = new Date(); d.setDate(d.getDate()-30);
-  document.getElementById('compareDate').value = d.toISOString().slice(0,10);
+  const current = document.getElementById('snapshotDate').value || todayIso();
+  document.getElementById('compareDate').value = addDaysIso(current, -30);
   openModal('modalCompare');
 });
 document.getElementById('btnRunCompare').addEventListener('click', async ()=>{
   const date = document.getElementById('compareDate').value;
   if(!date) return;
-  const res = await fetch('/api/compare?date='+date);
+  await runCompare(date, document.getElementById('snapshotDate').value || todayIso());
+});
+
+async function runCompare(date, currentDate){
+  const res = await fetch('/api/compare?date='+encodeURIComponent(date)+'&current_date='+encodeURIComponent(currentDate));
   const data = await res.json();
   const el = document.getElementById('compareResult');
+  if(data.error){ el.innerHTML = `<div style="color:#D8433A;font-weight:700;">${data.error}</div>`; return; }
   el.innerHTML = data.compare.map(c => `
     <div class="compare-item">
       <div class="c-name">${c.project}</div>
@@ -508,7 +558,7 @@ document.getElementById('btnRunCompare').addEventListener('click', async ()=>{
       ${c.entries_between.map(e => `<div class="c-comment"><b>${fmtDate(e.date)}</b> — ${e.stage}${e.comment ? ': '+e.comment : ''}</div>`).join('')}
     </div>
   `).join('') || '<div style="color:#c2c2c2;">нет проектов</div>';
-});
+}
 
 loadData();
 </script>
