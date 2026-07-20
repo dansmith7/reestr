@@ -14,7 +14,13 @@ export default async function handler(req, res) {
     const projectRows = (await p.query(
       `SELECT * FROM projects
        WHERE archived = false
-         AND ($1::text IS NULL OR created_at < ($1::date + interval '1 day'))
+         AND (
+           $1::text IS NULL OR EXISTS (
+             SELECT 1 FROM status_log sl
+             WHERE sl.project_id = projects.id
+               AND sl.created_at < ($1::date + interval '1 day')
+           )
+         )
        ORDER BY id ASC`,
       [snapshotDate]
     )).rows;

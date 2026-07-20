@@ -10,9 +10,16 @@ export default async function handler(req, res) {
     const totalRes = await p.query('SELECT COUNT(*)::int AS c FROM stages');
     const total = totalRes.rows[0].c;
     const projects = (await p.query(
-      `SELECT * FROM projects
+      `SELECT *
+       FROM projects
        WHERE archived = false
-         AND ($1::text IS NULL OR created_at < ($1::date + interval '1 day'))
+         AND (
+           $1::text IS NULL OR EXISTS (
+             SELECT 1 FROM status_log sl
+             WHERE sl.project_id = projects.id
+               AND sl.created_at < ($1::date + interval '1 day')
+           )
+         )
        ORDER BY id ASC`,
       [currentDate]
     )).rows;
@@ -47,10 +54,18 @@ export default async function handler(req, res) {
         past_stage_index: past ? past.stage_position : null,
         current_status: current.status,
         current_stage_index: current.stage_index,
-        moved: !!(
+        has_past_snapshot: !!past,
+        is_new: !past,
+        stage_changed: !!(
           past &&
           current.stage_index != null &&
           current.stage_index !== past.stage_position
+        ),
+        changed: !!(
+          past &&
+          (current.stage_id !== past.stage_id ||
+            current.timing !== past.timing ||
+            current.comment !== past.comment)
         ),
         entries_between: betweenRes.rows.map((r) => ({
           date: r.created_at,

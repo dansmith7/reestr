@@ -125,8 +125,9 @@
   .compare-chip button{border:none;background:var(--grey-bg);color:#8b8b8b;border-radius:999px;width:22px;height:22px;cursor:pointer;font-size:12px;line-height:1;}
   .compare-chip button:hover{color:var(--text-dark);}
 
-  .diff-row{margin-bottom:10px;}
+  .diff-row{margin-bottom:10px;display:flex;align-items:flex-start;flex-wrap:wrap;gap:6px 8px;}
   .diff-badge{font-size:11px;font-weight:800;padding:4px 9px;border-radius:7px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
+  .diff-detail{font-size:12px;font-weight:700;line-height:1.45;color:#6f6f6f;min-width:0;}
   .diff-badge.moved{background:var(--green-soft);color:var(--green-dark);}
   .diff-badge.same{background:var(--grey-bg);color:#9b9b9b;}
   .diff-badge.stuck{background:var(--red-soft);color:var(--red);}
@@ -174,7 +175,7 @@
   </div>
   <div class="projects" id="projectsList"></div>
 
-  <div class="footer-note">Данные из локальной базы · нажатие на проект раскрывает историю и позволяет обновить статус</div>
+  <div class="footer-note">Загрузка проектов · нажатие на проект раскрывает историю и позволяет обновить статус</div>
 </div>
 
 <!-- Modal: изменить статус -->
@@ -400,11 +401,17 @@ function diffBadgeHtml(p){
   if(!COMPARE) return '';
   const c = COMPARE.map[p.id];
   if(!c) return '';
-  if(c.past_stage_index == null){
+  if(c.is_new){
     return '<span class="diff-badge moved">🆕 новый проект</span>';
   }
-  if(c.moved){
-    return `<span class="diff-badge moved" title="было: «${c.past_status}» → стало: «${c.current_status}»">▲ продвинулся</span>`;
+  if(!c.has_past_snapshot){
+    return '<span class="diff-badge same">? нет среза на дату сравнения</span>';
+  }
+  if(c.stage_changed){
+    return `<span class="diff-badge moved">▲ этап изменился</span><span class="diff-detail">${c.past_status} → ${c.current_status}</span>`;
+  }
+  if(c.changed){
+    return '<span class="diff-badge moved">● статус обновлён</span>';
   }
   if(p.stale){
     return '<span class="diff-badge stuck">⚠ застрял</span>';
@@ -675,18 +682,18 @@ function buildStaticPreviewCompare(date, currentDate){
   STATE.projects.forEach((p, i) => {
     if(i === 0){
       const pastIdx = Math.max(0, p.stage_index - 2);
-      map[p.id] = { id: p.id, moved: true, past_stage_index: pastIdx, past_status: STATE.stages[pastIdx].name, current_status: p.status };
+      map[p.id] = { id: p.id, has_past_snapshot: true, stage_changed: true, past_stage_index: pastIdx, past_status: STATE.stages[pastIdx].name, current_status: p.status };
     } else if(i === 1){
       const pastIdx = Math.max(0, p.stage_index - 1);
-      map[p.id] = { id: p.id, moved: true, past_stage_index: pastIdx, past_status: STATE.stages[pastIdx].name, current_status: p.status };
+      map[p.id] = { id: p.id, has_past_snapshot: true, stage_changed: true, past_stage_index: pastIdx, past_status: STATE.stages[pastIdx].name, current_status: p.status };
     } else if(i === 2){
       p.stale = true;
       DEMO_STALE_ID = p.id;
-      map[p.id] = { id: p.id, moved: false, past_stage_index: p.stage_index, past_status: p.status, current_status: p.status };
+      map[p.id] = { id: p.id, has_past_snapshot: true, stage_changed: false, past_stage_index: p.stage_index, past_status: p.status, current_status: p.status };
     } else if(i === 3){
-      map[p.id] = { id: p.id, moved: false, past_stage_index: null, past_status: 'нет данных на эту дату', current_status: p.status };
+      map[p.id] = { id: p.id, has_past_snapshot: false, is_new: true, past_stage_index: null, past_status: 'нет данных на эту дату', current_status: p.status };
     } else {
-      map[p.id] = { id: p.id, moved: false, past_stage_index: p.stage_index, past_status: p.status, current_status: p.status };
+      map[p.id] = { id: p.id, has_past_snapshot: true, stage_changed: false, past_stage_index: p.stage_index, past_status: p.status, current_status: p.status };
     }
   });
   return { date, current_date: currentDate, map };
