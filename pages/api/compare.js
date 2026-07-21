@@ -47,6 +47,11 @@ export default async function handler(req, res) {
         [proj.id, date, currentDate]
       );
 
+      // Отсутствие записи на дату сравнения не означает, что проект новый:
+      // у существующего проекта могла появиться первая запись статуса позже.
+      const projectCreatedAfterCompareDate =
+        !past && new Date(proj.created_at).getTime() >= new Date(`${date}T23:59:59.999Z`).getTime();
+
       result.push({
         project: proj.name,
         id: proj.id,
@@ -55,7 +60,7 @@ export default async function handler(req, res) {
         current_status: current.status,
         current_stage_index: current.stage_index,
         has_past_snapshot: !!past,
-        is_new: !past,
+        is_new: projectCreatedAfterCompareDate,
         stage_changed: !!(
           past &&
           current.stage_index != null &&
