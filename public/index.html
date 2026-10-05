@@ -86,7 +86,7 @@
   .timing-flag svg{flex-shrink:0;}
 
   .project-details{max-height:0;overflow:hidden;transition:max-height .3s ease, margin-top .3s ease;margin-top:0;}
-  .project.open .project-details{max-height:2000px;margin-top:16px;}
+  .project.open .project-details{max-height:5000px;margin-top:16px;}
   .detail-grid{display:grid;grid-template-columns:1fr;gap:12px;padding-top:14px;border-top:1px dashed var(--border);font-size:13px;}
   .detail-item .k{color:#9b9b9b;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;}
   .detail-item .v{color:var(--text-dark);font-weight:600;}
@@ -132,6 +132,23 @@
   .diff-badge.moved{background:var(--green-soft);color:var(--green-dark);}
   .diff-badge.same{background:var(--grey-bg);color:#9b9b9b;}
   .diff-badge.stuck{background:var(--red-soft);color:var(--red);}
+
+  .milestone-panel{margin-top:16px;border-top:1px dashed var(--border);padding-top:12px;}
+  .milestone-panel__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+  .milestone-panel__head .history-title{margin:0;}
+  .milestone-table{border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  .milestone-row{display:grid;grid-template-columns:minmax(130px,1.4fr) .8fr .8fr .8fr 28px;gap:8px;align-items:center;padding:8px 9px;border-bottom:1px solid var(--grey-bg);font-size:10.5px;}
+  .milestone-row:last-child{border-bottom:none;}
+  .milestone-row.head{background:var(--grey-bg);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.25px;color:#9b9b9b;}
+  .milestone-name{font-weight:700;color:var(--text-dark);line-height:1.25;}
+  .milestone-date{font-weight:600;color:var(--text);}
+  .milestone-date.empty{color:#c2c2c2;font-weight:500;}
+  .milestone-date.late{color:var(--red);}
+  .milestone-edit{border:0;background:transparent;color:#9b9b9b;font-size:15px;line-height:1;cursor:pointer;padding:2px;}
+  .milestone-edit:hover{color:var(--green-dark);}
+  .milestone-note{font-size:10px;color:#9b9b9b;margin-top:7px;line-height:1.35;}
+  .milestone-alert{background:var(--red-soft);color:var(--red);font-size:10px;font-weight:800;border-radius:5px;padding:2px 5px;display:inline-block;margin-top:3px;}
+  @media(max-width:760px){.milestone-row{grid-template-columns:minmax(120px,1fr) .9fr 28px;}.milestone-row .forecast{display:none;}.milestone-row.head .forecast{display:none;}}
 
   @media (max-width:760px){ .projects{grid-template-columns:1fr;} }
 </style>
@@ -179,13 +196,28 @@
   <div class="footer-note">Загрузка проектов · нажатие на проект раскрывает историю и позволяет обновить статус</div>
 </div>
 
+<!-- Modal: план / прогноз / факт вехи -->
+<div class="modal-overlay" id="modalMilestone">
+  <div class="modal">
+    <h2 id="milestoneModalTitle">Контрольная точка</h2>
+    <input type="hidden" id="milestoneProjectId">
+    <input type="hidden" id="milestoneStageId">
+    <div class="field"><label>Базовый план</label><input type="date" id="milestoneBaseline"></div>
+    <div class="field"><label>Текущий прогноз</label><input type="date" id="milestoneForecast"></div>
+    <div class="field"><label>Фактическая дата события</label><input type="date" id="milestoneActual"></div>
+    <div class="field"><label>Причина переноса</label><input type="text" id="milestoneReason" placeholder="например: ожидание ответа эксперта"></div>
+    <div class="field"><label>Комментарий</label><textarea id="milestoneComment" placeholder="пояснение для истории"></textarea></div>
+    <div class="modal-actions"><button class="btn btn-secondary" data-close="modalMilestone">Отмена</button><button class="btn btn-primary" id="btnSaveMilestone">Сохранить</button></div>
+  </div>
+</div>
+
 <!-- Modal: изменить статус -->
 <div class="modal-overlay" id="modalStatus">
   <div class="modal">
     <h2>Обновить статус</h2>
     <input type="hidden" id="statusProjectId">
     <div class="field">
-      <label>Дата статуса</label>
+      <label>Дата события (факт этапа)</label>
       <input type="date" id="statusDate">
     </div>
     <div class="field">
@@ -313,6 +345,41 @@ function fmtDate(iso){
   const d = new Date(iso);
   return d.toLocaleDateString('ru-RU', {day:'numeric', month:'long', year:'numeric'}) + ' ' +
          d.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+}
+
+function fmtMilestoneDate(iso){
+  if(!iso) return '—';
+  return new Date(iso + 'T12:00:00').toLocaleDateString('ru-RU', {day:'numeric', month:'short', year:'2-digit'});
+}
+
+function daysBetween(from, to){
+  if(!from || !to) return null;
+  return Math.round((new Date(to + 'T12:00:00') - new Date(from + 'T12:00:00')) / 86400000);
+}
+
+function milestonePanelContent(p){
+  if(!p.milestones) return '<div style="font-size:12px;color:#9b9b9b;">Загрузка контрольных точек...</div>';
+  const rows = p.milestones.map((m, index) => {
+    const effectiveDate = m.actual_date || m.forecast_date;
+    const variance = daysBetween(m.baseline_date, effectiveDate);
+    const factMissing = index <= p.stage_index && !m.actual_date;
+    const status = factMissing ? '<span class="milestone-alert">факт не подтверждён</span>' : '';
+    return `
+      <div class="milestone-row">
+        <div class="milestone-name">${index + 1}. ${m.stage_name}${status}</div>
+        <div class="milestone-date ${m.baseline_date ? '' : 'empty'}">${fmtMilestoneDate(m.baseline_date)}</div>
+        <div class="milestone-date forecast ${m.forecast_date ? '' : 'empty'} ${!m.actual_date && variance > 0 ? 'late' : ''}">${fmtMilestoneDate(m.forecast_date)}</div>
+        <div class="milestone-date ${m.actual_date ? '' : 'empty'} ${m.actual_date && variance > 0 ? 'late' : ''}">${fmtMilestoneDate(m.actual_date)}</div>
+        <button class="milestone-edit" onclick="openMilestoneModal(${p.id}, ${m.stage_id})" title="Изменить веху">✎</button>
+      </div>`;
+  }).join('');
+  return `
+    <div class="milestone-table"><div class="milestone-row head"><div>Этап</div><div>План</div><div class="forecast">Прогноз</div><div>Факт</div><div></div></div>${rows}</div>
+    <div class="milestone-note">Отклонение рассчитывается от базового плана: по факту, а пока факт не указан — по текущему прогнозу.</div>`;
+}
+
+function milestonePanelHtml(p){
+  return `<div class="milestone-panel"><div class="milestone-panel__head"><div class="history-title">План / прогноз / факт по этапам</div></div><div id="milestones-${p.id}">${milestonePanelContent(p)}</div></div>`;
 }
 
 document.getElementById('todayBadge').textContent =
@@ -469,6 +536,7 @@ function renderProjects(){
           <button class="btn btn-primary" data-action="update-status" data-id="${p.id}">Обновить статус</button>
           <button class="btn btn-danger" data-action="delete-project" data-id="${p.id}">Удалить проект</button>
         </div>
+        ${milestonePanelHtml(p)}
         <div class="history-list">
           <div class="history-title">История изменений</div>
           <div id="history-${p.id}">Загрузка...</div>
@@ -482,7 +550,10 @@ function renderProjects(){
       if(e.target.closest('button')) return;
       const wasOpen = el.classList.contains('open');
       el.classList.toggle('open');
-      if(!wasOpen) loadHistory(el.dataset.id);
+      if(!wasOpen) {
+        loadHistory(el.dataset.id);
+        loadMilestones(el.dataset.id, el);
+      }
     });
     el.addEventListener('mouseenter', ()=>{
       const p = STATE.projects.find(x=>String(x.id)===el.dataset.id);
@@ -536,6 +607,32 @@ async function loadHistory(pid){
   `).join('');
 }
 
+async function loadMilestones(pid, projectElement){
+  const p = STATE.projects.find(x => String(x.id) === String(pid));
+  const target = projectElement.querySelector('#milestones-' + pid);
+  if(!p || !target || p.milestones) return;
+  if(STATE.static_preview){
+    p.milestones = STATE.stages.map((s, index) => ({
+      stage_id: s.id,
+      stage_name: s.name,
+      stage_position: s.position,
+      baseline_date: null,
+      forecast_date: null,
+      actual_date: null,
+    }));
+    target.innerHTML = milestonePanelContent(p);
+    return;
+  }
+  const res = await fetch('/api/milestones/' + pid);
+  const data = await res.json();
+  if(!res.ok || !Array.isArray(data.milestones)){
+    target.innerHTML = '<div style="font-size:12px;color:#D8433A;font-weight:700;">Не удалось загрузить контрольные точки.</div>';
+    return;
+  }
+  p.milestones = data.milestones;
+  target.innerHTML = milestonePanelContent(p);
+}
+
 // ---- Modal helpers ----
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
@@ -544,6 +641,53 @@ document.querySelectorAll('[data-close]').forEach(btn=>{
 });
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
   ov.addEventListener('click', (e)=>{ if(e.target===ov) ov.classList.remove('show'); });
+});
+
+// ---- План / прогноз / факт контрольной точки ----
+function openMilestoneModal(projectId, stageId){
+  const p = STATE.projects.find(x => Number(x.id) === Number(projectId));
+  const milestone = p?.milestones?.find(x => Number(x.stage_id) === Number(stageId));
+  if(!p || !milestone) return;
+  document.getElementById('milestoneProjectId').value = projectId;
+  document.getElementById('milestoneStageId').value = stageId;
+  document.getElementById('milestoneModalTitle').textContent = p.name + ' · ' + milestone.stage_name;
+  document.getElementById('milestoneBaseline').value = milestone.baseline_date || '';
+  document.getElementById('milestoneForecast').value = milestone.forecast_date || '';
+  document.getElementById('milestoneActual').value = milestone.actual_date || '';
+  document.getElementById('milestoneReason').value = milestone.delay_reason || '';
+  document.getElementById('milestoneComment').value = milestone.comment || '';
+  openModal('modalMilestone');
+}
+
+document.getElementById('btnSaveMilestone').addEventListener('click', async ()=>{
+  if(STATE.static_preview){
+    alert('Это локальный preview. Чтобы сохранять даты, откройте приложение на Vercel.');
+    return;
+  }
+  const projectId = document.getElementById('milestoneProjectId').value;
+  const stageId = document.getElementById('milestoneStageId').value;
+  const payload = {
+    stage_id: Number(stageId),
+    baseline_date: document.getElementById('milestoneBaseline').value || null,
+    forecast_date: document.getElementById('milestoneForecast').value || null,
+    actual_date: document.getElementById('milestoneActual').value || null,
+    delay_reason: document.getElementById('milestoneReason').value,
+    comment: document.getElementById('milestoneComment').value,
+  };
+  const res = await fetch('/api/milestones/' + projectId, {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if(!res.ok || data.error){ alert(data.error || 'Не удалось сохранить контрольную точку'); return; }
+  const p = STATE.projects.find(x => String(x.id) === String(projectId));
+  const index = p.milestones.findIndex(x => Number(x.stage_id) === Number(stageId));
+  if(index >= 0) p.milestones[index] = {...p.milestones[index], ...data.milestone};
+  closeModal('modalMilestone');
+  const projectElement = document.querySelector('.project[data-id="' + projectId + '"]');
+  const target = projectElement?.querySelector('#milestones-' + projectId);
+  if(target) target.innerHTML = milestonePanelContent(p);
 });
 
 // ---- Update status ----

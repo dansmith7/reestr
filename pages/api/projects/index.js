@@ -1,4 +1,9 @@
-import { ensureSchema, normalizeSnapshotDate, serializeProjectAt } from '../../../lib/db';
+import {
+  ensureMilestonesForProject,
+  ensureSchema,
+  normalizeSnapshotDate,
+  serializeProjectAt,
+} from '../../../lib/db';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method not allowed' });
@@ -16,6 +21,7 @@ export default async function handler(req, res) {
       [name.trim(), date]
     );
     const pid = pr.rows[0].id;
+    await ensureMilestonesForProject(p, pid);
     await p.query(
       `INSERT INTO status_log (project_id, stage_id, timing, comment, created_at)
        VALUES ($1, $2, $3, $4, COALESCE(($5::date + time '12:00') AT TIME ZONE 'UTC', now()))`,
