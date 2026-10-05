@@ -347,14 +347,21 @@ function fmtDate(iso){
          d.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
 }
 
-function fmtMilestoneDate(iso){
+function dateOnly(value){
+  return typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : '';
+}
+
+function fmtMilestoneDate(value){
+  const iso = dateOnly(value);
   if(!iso) return '—';
   return new Date(iso + 'T12:00:00').toLocaleDateString('ru-RU', {day:'numeric', month:'short', year:'2-digit'});
 }
 
 function daysBetween(from, to){
-  if(!from || !to) return null;
-  return Math.round((new Date(to + 'T12:00:00') - new Date(from + 'T12:00:00')) / 86400000);
+  const start = dateOnly(from);
+  const end = dateOnly(to);
+  if(!start || !end) return null;
+  return Math.round((new Date(end + 'T12:00:00') - new Date(start + 'T12:00:00')) / 86400000);
 }
 
 function milestonePanelContent(p){
@@ -651,9 +658,9 @@ function openMilestoneModal(projectId, stageId){
   document.getElementById('milestoneProjectId').value = projectId;
   document.getElementById('milestoneStageId').value = stageId;
   document.getElementById('milestoneModalTitle').textContent = p.name + ' · ' + milestone.stage_name;
-  document.getElementById('milestoneBaseline').value = milestone.baseline_date || '';
-  document.getElementById('milestoneForecast').value = milestone.forecast_date || '';
-  document.getElementById('milestoneActual').value = milestone.actual_date || '';
+  document.getElementById('milestoneBaseline').value = dateOnly(milestone.baseline_date);
+  document.getElementById('milestoneForecast').value = dateOnly(milestone.forecast_date);
+  document.getElementById('milestoneActual').value = dateOnly(milestone.actual_date);
   document.getElementById('milestoneReason').value = milestone.delay_reason || '';
   document.getElementById('milestoneComment').value = milestone.comment || '';
   openModal('modalMilestone');
