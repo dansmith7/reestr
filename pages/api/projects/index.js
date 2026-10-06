@@ -1,5 +1,6 @@
 import {
   ensureMilestonesForProject,
+  ensureTargetsForProject,
   ensureSchema,
   normalizeSnapshotDate,
   serializeProjectAt,
@@ -22,6 +23,7 @@ export default async function handler(req, res) {
     );
     const pid = pr.rows[0].id;
     await ensureMilestonesForProject(p, pid);
+    await ensureTargetsForProject(p, pid);
     await p.query(
       `INSERT INTO status_log (project_id, stage_id, timing, comment, created_at)
        VALUES ($1, $2, $3, $4, COALESCE(($5::date + time '12:00') AT TIME ZONE 'UTC', now()))`,

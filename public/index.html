@@ -148,6 +148,14 @@
   .milestone-edit:hover{color:var(--green-dark);}
   .milestone-note{font-size:10px;color:#9b9b9b;margin-top:7px;line-height:1.35;}
   .milestone-alert{background:var(--red-soft);color:var(--red);font-size:10px;font-weight:800;border-radius:5px;padding:2px 5px;display:inline-block;margin-top:3px;}
+  .targets-panel{margin-top:14px;border-top:1px dashed var(--border);padding-top:12px;}
+  .targets-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .target-card{background:var(--grey-bg);border-radius:9px;padding:10px;}
+  .target-card .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.25px;color:#9b9b9b;font-weight:800;margin-bottom:4px;}
+  .target-card .v{font-size:12px;color:var(--text-dark);font-weight:800;}
+  .target-card .v.empty{color:#b8bdb6;font-weight:600;}
+  .target-actions{margin-top:9px;}
+  @media(max-width:420px){.targets-grid{grid-template-columns:1fr;}}
   @media(max-width:760px){.milestone-row{grid-template-columns:minmax(120px,1fr) .9fr 28px;}.milestone-row .forecast{display:none;}.milestone-row.head .forecast{display:none;}}
 
   @media (max-width:760px){ .projects{grid-template-columns:1fr;} }
@@ -208,6 +216,17 @@
     <div class="field"><label>Причина переноса</label><input type="text" id="milestoneReason" placeholder="например: ожидание ответа эксперта"></div>
     <div class="field"><label>Комментарий</label><textarea id="milestoneComment" placeholder="пояснение для истории"></textarea></div>
     <div class="modal-actions"><button class="btn btn-secondary" data-close="modalMilestone">Отмена</button><button class="btn btn-primary" id="btnSaveMilestone">Сохранить</button></div>
+  </div>
+</div>
+
+<!-- Modal: две плановые даты проекта -->
+<div class="modal-overlay" id="modalTargets">
+  <div class="modal">
+    <h2 id="targetsModalTitle">Плановые даты проекта</h2>
+    <input type="hidden" id="targetsProjectId">
+    <div class="field"><label>Плановая дата подачи</label><input type="date" id="plannedSubmissionDate"></div>
+    <div class="field"><label>Плановое получение реестровой записи</label><input type="date" id="plannedRegistryReceivedDate"></div>
+    <div class="modal-actions"><button class="btn btn-secondary" data-close="modalTargets">Отмена</button><button class="btn btn-primary" id="btnSaveTargets">Сохранить</button></div>
   </div>
 </div>
 
@@ -389,6 +408,20 @@ function milestonePanelHtml(p){
   return `<div class="milestone-panel"><div class="milestone-panel__head"><div class="history-title">План / прогноз / факт по этапам</div></div><div id="milestones-${p.id}">${milestonePanelContent(p)}</div></div>`;
 }
 
+function targetsPanelHtml(p){
+  const submission = p.planned_submission_date;
+  const received = p.planned_registry_received_date;
+  return `
+    <div class="targets-panel">
+      <div class="milestone-panel__head"><div class="history-title">Плановые даты для дашборда</div></div>
+      <div class="targets-grid">
+        <div class="target-card"><div class="k">Плановая дата подачи</div><div class="v ${submission ? '' : 'empty'}">${submission ? fmtMilestoneDate(submission) : 'не указана'}</div></div>
+        <div class="target-card"><div class="k">Плановое получение реестровой записи</div><div class="v ${received ? '' : 'empty'}">${received ? fmtMilestoneDate(received) : 'не указано'}</div></div>
+      </div>
+      <div class="target-actions"><button class="btn btn-secondary" data-action="edit-targets" data-id="${p.id}">Указать даты</button></div>
+    </div>`;
+}
+
 document.getElementById('todayBadge').textContent =
   new Date().toLocaleDateString('ru-RU', {day:'numeric', month:'long', year:'numeric'});
 document.getElementById('snapshotDate').value = todayIso();
@@ -543,6 +576,7 @@ function renderProjects(){
           <button class="btn btn-primary" data-action="update-status" data-id="${p.id}">Обновить статус</button>
           <button class="btn btn-danger" data-action="delete-project" data-id="${p.id}">Удалить проект</button>
         </div>
+        ${targetsPanelHtml(p)}
         ${milestonePanelHtml(p)}
         <div class="history-list">
           <div class="history-title">История изменений</div>
@@ -576,6 +610,9 @@ function renderProjects(){
 
   list.querySelectorAll('[data-action="update-status"]').forEach(btn=>{
     btn.addEventListener('click', ()=> openStatusModal(btn.dataset.id));
+  });
+  list.querySelectorAll('[data-action="edit-targets"]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openTargetsModal(btn.dataset.id));
   });
   list.querySelectorAll('[data-action="delete-project"]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
@@ -695,6 +732,42 @@ document.getElementById('btnSaveMilestone').addEventListener('click', async ()=>
   const projectElement = document.querySelector('.project[data-id="' + projectId + '"]');
   const target = projectElement?.querySelector('#milestones-' + projectId);
   if(target) target.innerHTML = milestonePanelContent(p);
+});
+
+// ---- Две проектные плановые даты для общего дашборда ----
+function openTargetsModal(projectId){
+  const p = STATE.projects.find(x => String(x.id) === String(projectId));
+  if(!p) return;
+  document.getElementById('targetsProjectId').value = projectId;
+  document.getElementById('targetsModalTitle').textContent = p.name + ' · плановые даты';
+  document.getElementById('plannedSubmissionDate').value = dateOnly(p.planned_submission_date);
+  document.getElementById('plannedRegistryReceivedDate').value = dateOnly(p.planned_registry_received_date);
+  openModal('modalTargets');
+}
+
+document.getElementById('btnSaveTargets').addEventListener('click', async ()=>{
+  if(STATE.static_preview){
+    alert('Это локальный preview. Чтобы сохранять даты, откройте приложение на Vercel.');
+    return;
+  }
+  const projectId = document.getElementById('targetsProjectId').value;
+  const payload = {
+    planned_submission_date: document.getElementById('plannedSubmissionDate').value || null,
+    planned_registry_received_date: document.getElementById('plannedRegistryReceivedDate').value || null,
+  };
+  const res = await fetch('/api/projects/' + projectId + '/targets', {
+    method: 'PUT',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if(!res.ok || data.error){ alert(data.error || 'Не удалось сохранить плановые даты'); return; }
+  const p = STATE.projects.find(x => String(x.id) === String(projectId));
+  p.planned_submission_date = data.targets.planned_submission_date;
+  p.planned_registry_received_date = data.targets.planned_registry_received_date;
+  p.targets_updated_at = data.targets.updated_at;
+  closeModal('modalTargets');
+  renderProjects();
 });
 
 // ---- Update status ----
