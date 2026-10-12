@@ -35,9 +35,10 @@
 
   .btn{
     border:none;border-radius:10px;padding:9px 16px;font-family:inherit;
-    font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s;
+    font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s, transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s ease;
   }
-  .btn:hover{opacity:.85;}
+  .btn:hover{opacity:.85;transform:translateY(-1px);}
+  .btn:active{transform:translateY(1px) scale(.98);}
   .btn-primary{background:var(--green);color:#fff;}
   .btn-secondary{background:var(--white);color:var(--text-dark);border:1px solid var(--border);}
   .btn-danger{background:var(--red-soft);color:var(--red);}
@@ -50,9 +51,9 @@
   .stage-track{display:flex;position:relative;padding-top:8px;overflow-x:auto;}
   .stage-track::before{content:"";position:absolute;top:15px;left:0;right:0;height:2px;background:var(--border);}
   .stage{flex:1;min-width:70px;text-align:center;position:relative;font-size:9.5px;color:#9b9b9b;font-weight:600;padding:0 2px;}
-  .stage .dot{width:10px;height:10px;border-radius:50%;background:var(--white);border:2px solid var(--border);margin:0 auto 6px;position:relative;z-index:2;}
+  .stage .dot{width:10px;height:10px;border-radius:50%;background:var(--white);border:2px solid var(--border);margin:0 auto 6px;position:relative;z-index:2;transition:background .25s ease,border-color .25s ease,box-shadow .25s ease,transform .25s cubic-bezier(.2,.8,.2,1);}
   .stage .num{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:9px;color:#c2c2c2;font-weight:700;}
-  .stage.active .dot{background:var(--green);border-color:var(--green);}
+  .stage.active .dot{background:var(--green);border-color:var(--green);box-shadow:0 0 0 4px var(--green-soft);transform:scale(1.08);}
   .stage.active{color:var(--text-dark);}
   .stage-manage-row{display:flex;gap:4px;justify-content:center;margin-top:4px;}
   .stage-manage-row button{border:none;background:none;cursor:pointer;font-size:10px;color:#b0b0b0;padding:1px 3px;}
@@ -66,6 +67,8 @@
   .project{background:var(--white);border:1px solid var(--border);border-radius:16px;padding:20px;cursor:pointer;transition:box-shadow .18s ease, border-color .18s ease, transform .18s ease;position:relative;}
   .project:hover{box-shadow:0 10px 28px rgba(0,0,0,0.07);border-color:#d7d7d7;transform:translateY(-2px);}
   .project.stale{border-color:#f0c9c5;}
+  .project.motion-enter{animation:project-enter .48s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--enter-index) * 55ms);}
+  .project.just-saved{animation:save-pulse 1.25s ease both;}
 
   .project-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px;}
   .project-name{font-size:17px;font-weight:800;color:var(--text-dark);line-height:1.25;}
@@ -75,7 +78,7 @@
 
   .progress-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
   .progress-bar{flex:1;height:7px;background:var(--grey-bg);border-radius:6px;overflow:hidden;}
-  .progress-fill{height:100%;border-radius:6px;background:linear-gradient(90deg, var(--green-dark), var(--green));transition:width .5s ease;}
+  .progress-fill{height:100%;border-radius:6px;background:linear-gradient(90deg, var(--green-dark), var(--green));transition:width .5s ease;animation:progress-grow .72s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--enter-index) * 55ms + 120ms);}
   .pct{font-size:12.5px;font-weight:800;color:var(--text-dark);min-width:34px;text-align:right;}
 
   .project-footer{display:flex;flex-direction:column;gap:8px;min-height:22px;}
@@ -85,8 +88,8 @@
   .timing-flag{display:inline-flex;align-items:center;gap:6px;width:fit-content;font-size:11.5px;font-weight:600;color:#8b8b8b;}
   .timing-flag svg{flex-shrink:0;}
 
-  .project-details{max-height:0;overflow:hidden;transition:max-height .3s ease, margin-top .3s ease;margin-top:0;}
-  .project.open .project-details{max-height:5000px;margin-top:16px;}
+  .project-details{max-height:0;overflow:hidden;opacity:0;transform:translateY(-6px);transition:max-height .42s cubic-bezier(.2,.8,.2,1), margin-top .42s cubic-bezier(.2,.8,.2,1), opacity .22s ease, transform .22s ease;margin-top:0;}
+  .project.open .project-details{max-height:5000px;margin-top:16px;opacity:1;transform:translateY(0);}
   .detail-grid{display:grid;grid-template-columns:1fr;gap:12px;padding-top:14px;border-top:1px dashed var(--border);font-size:13px;}
   .detail-item .k{color:#9b9b9b;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;}
   .detail-item .v{color:var(--text-dark);font-weight:600;}
@@ -104,9 +107,10 @@
   .footer-note{text-align:center;font-size:12px;color:#b0b0b0;margin-top:32px;}
 
   /* Modal */
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
-  .modal-overlay.show{display:flex;}
-  .modal{background:#fff;border-radius:16px;padding:24px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s ease,visibility 0s linear .2s;}
+  .modal-overlay.show{opacity:1;visibility:visible;pointer-events:auto;transition-delay:0s;}
+  .modal{background:#fff;border-radius:16px;padding:24px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;opacity:0;transform:translateY(12px) scale(.98);transition:opacity .22s ease,transform .26s cubic-bezier(.2,.8,.2,1);}
+  .modal-overlay.show .modal{opacity:1;transform:translateY(0) scale(1);}
   .modal h2{font-size:17px;font-weight:800;margin:0 0 16px;color:var(--text-dark);}
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#9b9b9b;margin-bottom:6px;}
@@ -155,6 +159,13 @@
   .target-card .v{font-size:12px;color:var(--text-dark);font-weight:800;}
   .target-card .v.empty{color:#b8bdb6;font-weight:600;}
   .target-actions{margin-top:9px;}
+  .toast{position:fixed;left:50%;bottom:24px;z-index:150;display:flex;align-items:center;gap:8px;max-width:calc(100vw - 32px);padding:11px 14px;background:var(--text-dark);color:#fff;border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.18);font-size:13px;font-weight:800;opacity:0;transform:translate(-50%,16px) scale(.98);pointer-events:none;transition:opacity .2s ease,transform .25s cubic-bezier(.2,.8,.2,1);}
+  .toast.show{opacity:1;transform:translate(-50%,0) scale(1);}
+  .toast .mark{display:grid;place-items:center;width:17px;height:17px;background:var(--green);color:#fff;border-radius:50%;font-size:11px;}
+  @keyframes project-enter{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+  @keyframes progress-grow{from{width:0}to{width:var(--progress)}}
+  @keyframes save-pulse{0%,100%{box-shadow:0 0 0 rgba(96,216,18,0)}35%{border-color:var(--green);box-shadow:0 0 0 5px rgba(96,216,18,.18)}}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important;}}
   @media(max-width:420px){.targets-grid{grid-template-columns:1fr;}}
   @media(max-width:760px){.milestone-row{grid-template-columns:minmax(120px,1fr) .9fr 28px;}.milestone-row .forecast{display:none;}.milestone-row.head .forecast{display:none;}}
 
@@ -203,6 +214,8 @@
 
   <div class="footer-note">Загрузка проектов · нажатие на проект раскрывает историю и позволяет обновить статус</div>
 </div>
+
+<div class="toast" id="saveToast" role="status" aria-live="polite"><span class="mark">✓</span><span id="saveToastText"></span></div>
 
 <!-- Modal: план / прогноз / факт вехи -->
 <div class="modal-overlay" id="modalMilestone">
@@ -537,7 +550,7 @@ function renderProjects(){
   list.innerHTML = STATE.projects.map(p => {
     const total = p.total_stages || STATE.stages.length;
     return `
-    <div class="project ${p.stale?'stale':''}" data-id="${p.id}">
+    <div class="project motion-enter ${p.stale?'stale':''}" data-id="${p.id}" style="--enter-index:${Math.min(STATE.projects.indexOf(p), 10)}">
       <div class="project-head">
         <div class="project-name">${p.name}</div>
         <div class="stage-tag">${p.stage_index!=null ? (p.stage_index+1)+'/'+total : '—'}</div>
@@ -545,7 +558,7 @@ function renderProjects(){
       ${COMPARE ? `<div class="diff-row">${diffBadgeHtml(p)}</div>` : ''}
       <div class="project-status">${p.status || 'нет статуса'}</div>
       <div class="progress-row">
-        <div class="progress-bar"><div class="progress-fill" style="width:${p.pct}%"></div></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${p.pct}%;--progress:${p.pct}%;--enter-index:${Math.min(STATE.projects.indexOf(p), 10)}"></div></div>
         <div class="pct">${p.pct}%</div>
       </div>
       <div class="project-footer">
@@ -680,6 +693,22 @@ async function loadMilestones(pid, projectElement){
 // ---- Modal helpers ----
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+let toastTimer;
+function showSaveFeedback(message, projectId){
+  const toast = document.getElementById('saveToast');
+  document.getElementById('saveToastText').textContent = message;
+  clearTimeout(toastTimer);
+  toast.classList.add('show');
+  if(projectId){
+    const project = document.querySelector('.project[data-id="' + projectId + '"]');
+    if(project){
+      project.classList.remove('just-saved');
+      void project.offsetWidth;
+      project.classList.add('just-saved');
+    }
+  }
+  toastTimer = setTimeout(()=> toast.classList.remove('show'), 2600);
+}
 document.querySelectorAll('[data-close]').forEach(btn=>{
   btn.addEventListener('click', ()=> closeModal(btn.dataset.close));
 });
@@ -732,6 +761,7 @@ document.getElementById('btnSaveMilestone').addEventListener('click', async ()=>
   const projectElement = document.querySelector('.project[data-id="' + projectId + '"]');
   const target = projectElement?.querySelector('#milestones-' + projectId);
   if(target) target.innerHTML = milestonePanelContent(p);
+  showSaveFeedback('Контрольная точка сохранена', projectId);
 });
 
 // ---- Две проектные плановые даты для общего дашборда ----
@@ -768,6 +798,7 @@ document.getElementById('btnSaveTargets').addEventListener('click', async ()=>{
   p.targets_updated_at = data.targets.updated_at;
   closeModal('modalTargets');
   renderProjects();
+  showSaveFeedback('Плановые даты сохранены', projectId);
 });
 
 // ---- Update status ----
@@ -793,6 +824,7 @@ document.getElementById('btnSaveStatus').addEventListener('click', async ()=>{
   });
   closeModal('modalStatus');
   await loadData(effective_date);
+  showSaveFeedback('Статус проекта обновлён', pid);
 });
 
 // ---- New project ----
@@ -816,6 +848,7 @@ document.getElementById('btnSaveNewProject').addEventListener('click', async ()=
   });
   closeModal('modalNewProject');
   await loadData(effective_date);
+  showSaveFeedback('Новый проект добавлен');
 });
 
 // ---- Manage stages ----
