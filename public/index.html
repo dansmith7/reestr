@@ -170,6 +170,9 @@
   @media(max-width:760px){.milestone-row{grid-template-columns:minmax(120px,1fr) .9fr 28px;}.milestone-row .forecast{display:none;}.milestone-row.head .forecast{display:none;}}
 
   @media (max-width:760px){ .projects{grid-template-columns:1fr;} }
+  a.project{display:block;color:inherit;text-decoration:none;}
+  a.project:focus-visible{outline:3px solid var(--green);outline-offset:4px;}
+  .project-open-label{display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px solid var(--border);color:var(--green-dark);font-size:13px;font-weight:800;}
 </style>
 </head>
 <body>
@@ -205,14 +208,14 @@
   </div>
 
   <div class="toolbar">
-    <div class="section-title">Проекты <span style="color:#b0b0b0;font-weight:600;">(нажмите на карточку, чтобы развернуть детали)</span></div>
+    <div class="section-title">Проекты <span style="color:#b0b0b0;font-weight:600;">(нажмите на проект, чтобы открыть карточку)</span></div>
     <div class="toolbar-actions">
       <button class="btn btn-primary" id="btnAddProject">+ Новый проект</button>
     </div>
   </div>
   <div class="projects" id="projectsList"></div>
 
-  <div class="footer-note">Загрузка проектов · нажатие на проект раскрывает историю и позволяет обновить статус</div>
+  <div class="footer-note">Нажатие на проект открывает его этапы, сроки и историю изменений</div>
 </div>
 
 <div class="toast" id="saveToast" role="status" aria-live="polite"><span class="mark">✓</span><span id="saveToastText"></span></div>
@@ -329,6 +332,8 @@
   </div>
 </div>
 
+<script src="/vendor/motion.js?v=bd4822a8b54e"></script>
+<script src="/arc-motion.js?v=673017960165"></script>
 <script>
 let STATE = { stages: [], projects: [] };
 let COMPARE = null;
@@ -437,7 +442,8 @@ function targetsPanelHtml(p){
 
 document.getElementById('todayBadge').textContent =
   new Date().toLocaleDateString('ru-RU', {day:'numeric', month:'long', year:'numeric'});
-document.getElementById('snapshotDate').value = todayIso();
+const requestedSnapshot = new URLSearchParams(location.search).get('date');
+document.getElementById('snapshotDate').value = /^\d{4}-\d{2}-\d{2}$/.test(requestedSnapshot || '') ? requestedSnapshot : todayIso();
 
 function buildStaticPreviewState(date){
   const stages = DEMO_STAGES.map((name, i) => ({ id: i + 1, name, position: i }));
@@ -530,7 +536,7 @@ function diffBadgeHtml(p){
     return '<span class="diff-badge same">? нет среза на дату сравнения</span>';
   }
   if(c.stage_changed){
-    return `<span class="diff-badge moved">▲ этап изменился</span><span class="diff-detail">${c.past_status} → ${c.current_status}</span>`;
+    return `<span class="diff-badge moved">▲ этап изменился</span><span class="diff-detail">${escapeHtml(c.past_status)} → ${escapeHtml(c.current_status)}</span>`;
   }
   if(c.changed){
     return '<span class="diff-badge moved">● статус обновлён</span>';
@@ -541,100 +547,44 @@ function diffBadgeHtml(p){
   return '<span class="diff-badge same">— без изменений</span>';
 }
 
+function escapeHtml(value){
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function renderProjects(){
   const list = document.getElementById('projectsList');
   if(!STATE.projects.length){
-    list.innerHTML = '<div style="grid-column:1/-1;color:#b0b0b0;font-weight:700;text-align:center;padding:40px 0;">На эту дату проектов нет. Добавьте проект или внесите стартовые данные через админку.</div>';
+    list.innerHTML = '<div style="grid-column:1/-1;color:#8b8b8b;font-weight:700;text-align:center;padding:40px 0;">На эту дату проектов нет. Добавьте проект или выберите другую дату.</div>';
     return;
   }
   list.innerHTML = STATE.projects.map(p => {
     const total = p.total_stages || STATE.stages.length;
-    return `
-    <div class="project motion-enter ${p.stale?'stale':''}" data-id="${p.id}" style="--enter-index:${Math.min(STATE.projects.indexOf(p), 10)}">
-      <div class="project-head">
-        <div class="project-name">${p.name}</div>
-        <div class="stage-tag">${p.stage_index!=null ? (p.stage_index+1)+'/'+total : '—'}</div>
-      </div>
+    const completed = p.status === 'Реестр получен';
+    const url = '/project.html?id=' + encodeURIComponent(p.id) + '&date=' + encodeURIComponent(STATE.snapshot_date || todayIso());
+    return `<a class="project ${p.stale && !completed ? 'stale' : ''}" data-id="${Number(p.id)}" href="${url}" aria-label="Открыть проект ${escapeHtml(p.name)}">
+      <div class="project-head"><div class="project-name">${escapeHtml(p.name)}</div><div class="stage-tag">${p.stage_index!=null ? (p.stage_index+1)+'/'+total : '—'}</div></div>
       ${COMPARE ? `<div class="diff-row">${diffBadgeHtml(p)}</div>` : ''}
-      <div class="project-status">${p.status || 'нет статуса'}</div>
-      <div class="progress-row">
-        <div class="progress-bar"><div class="progress-fill" style="width:${p.pct}%;--progress:${p.pct}%;--enter-index:${Math.min(STATE.projects.indexOf(p), 10)}"></div></div>
-        <div class="pct">${p.pct}%</div>
-      </div>
+      <div class="project-status">${escapeHtml(p.status || 'нет статуса')}</div>
+      <div class="progress-row"><div class="progress-bar"><div class="progress-fill" style="width:${Number(p.pct)||0}%;--progress:${Number(p.pct)||0}%;--enter-index:0"></div></div><div class="pct">${Number(p.pct)||0}%</div></div>
       <div class="project-footer">
-        ${p.timing ? `<span class="timing-flag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>${p.timing}</span>` : ""}
-        ${p.comment ? `<span class="waiting-flag"><span class="dot-y"></span>${p.comment}</span>` : ""}
-        ${p.stale ? `<span class="stale-flag">⏱ нет изменений ${p.weeks_since_update} нед.</span>` : ""}
-      </div>
-      <div class="project-details">
-        <div class="detail-grid">
-          <div class="detail-item">
-            <div class="k">Текущий статус</div>
-            <div class="v">${p.status || '—'} ${p.stage_index!=null ? `(этап ${p.stage_index+1} из ${total})` : ''}</div>
-          </div>
-          <div class="detail-item">
-            <div class="k">Обновлено</div>
-            <div class="v">${fmtDate(p.updated_at) || '—'}</div>
-          </div>
-          <div class="detail-item">
-            <div class="k">Сроки</div>
-            <div class="v ${p.timing ? '' : 'empty'}">${p.timing || "не указаны"}</div>
-          </div>
-          <div class="detail-item">
-            <div class="k">Комментарий</div>
-            <div class="v ${p.comment ? '' : 'empty'}">${p.comment || "нет"}</div>
-          </div>
-        </div>
-        <div class="detail-actions">
-          <button class="btn btn-primary" data-action="update-status" data-id="${p.id}">Обновить статус</button>
-          <button class="btn btn-danger" data-action="delete-project" data-id="${p.id}">Удалить проект</button>
-        </div>
-        ${targetsPanelHtml(p)}
-        ${milestonePanelHtml(p)}
-        <div class="history-list">
-          <div class="history-title">История изменений</div>
-          <div id="history-${p.id}">Загрузка...</div>
-        </div>
-      </div>
-    </div>`;
+        ${p.timing ? `<span class="timing-flag">${escapeHtml(p.timing)}</span>` : ''}
+        ${p.comment ? `<span class="waiting-flag"><span class="dot-y"></span>${escapeHtml(p.comment)}</span>` : ''}
+        ${p.stale && !completed ? `<span class="stale-flag">⏱ нет изменений ${Number(p.weeks_since_update)} нед.</span>` : ''}
+      </div><div class="project-open-label">Открыть карточку <span aria-hidden="true">→</span></div>
+    </a>`;
   }).join('');
-
   list.querySelectorAll('.project').forEach(el=>{
-    el.addEventListener('click', (e)=>{
-      if(e.target.closest('button')) return;
-      const wasOpen = el.classList.contains('open');
-      el.classList.toggle('open');
-      if(!wasOpen) {
-        loadHistory(el.dataset.id);
-        loadMilestones(el.dataset.id, el);
-      }
-    });
-    el.addEventListener('mouseenter', ()=>{
+    const highlight = () => {
       const p = STATE.projects.find(x=>String(x.id)===el.dataset.id);
-      const idx = p ? p.stage_index : null;
-      document.querySelectorAll('#stageTrack .stage').forEach((s,i)=>{
-        s.classList.toggle('active', idx!=null && i <= idx);
-      });
-    });
-    el.addEventListener('mouseleave', ()=>{
-      document.querySelectorAll('#stageTrack .stage').forEach(s=>s.classList.remove('active'));
-    });
+      document.querySelectorAll('#stageTrack .stage').forEach((s,i)=>s.classList.toggle('active',p?.stage_index!=null && i<=p.stage_index));
+    };
+    const clear = () => document.querySelectorAll('#stageTrack .stage').forEach(s=>s.classList.remove('active'));
+    el.addEventListener('mouseenter',highlight);
+    el.addEventListener('focus',highlight);
+    el.addEventListener('mouseleave',clear);
+    el.addEventListener('blur',clear);
   });
-
-  list.querySelectorAll('[data-action="update-status"]').forEach(btn=>{
-    btn.addEventListener('click', ()=> openStatusModal(btn.dataset.id));
-  });
-  list.querySelectorAll('[data-action="edit-targets"]').forEach(btn=>{
-    btn.addEventListener('click', ()=> openTargetsModal(btn.dataset.id));
-  });
-  list.querySelectorAll('[data-action="delete-project"]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      if(STATE.static_preview){ alert('Это локальный preview. Чтобы удалять проекты, откройте приложение через Vercel или Next.js dev server.'); return; }
-      if(!confirm('Удалить проект? История сохранится в базе, но проект исчезнет из списка.')) return;
-      await fetch('/api/projects/'+btn.dataset.id, {method:'DELETE'});
-      loadData(STATE.snapshot_date);
-    });
-  });
+  window.ArcMotion?.cards(list);
 }
 
 async function loadHistory(pid){

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карточка проекта — реестр</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/project.css?v=5310c6632c6b">
+</head><body>
+  <svg style="display:none" aria-hidden="true">
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 5 5"/></symbol>
+    <symbol id="icon-print" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 17H3V9h18v8h-3M6 14h12v7H6z"/><path d="M17 11h1"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+    <symbol id="icon-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16v1"/></symbol>
+  </svg>
+  <header class="topbar">
+    <a class="brand" href="/index.html" id="overview-brand"><div class="brand-mark" aria-hidden="true"></div><div class="brand-name">Реестровые записи</div><div class="brand-divider"></div><div class="brand-caption">Карточка проекта</div></a>
+    <div class="page-tools"><a class="button" href="/index.html" id="overview-link">← Все проекты</a><label class="snapshot" for="snapshot-date"><span id="snapshot-label">Срез на дату</span><input type="date" id="snapshot-date" required></label></div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Выбор проекта">
+      <div class="sidebar-inner">
+        <div class="sidebar-heading"><h2>Проекты</h2><span class="count" id="project-count"></span></div>
+        <div class="search-wrap"><svg><use href="#icon-search"/></svg><input id="search" type="search" placeholder="Найти проект" aria-label="Поиск проекта"></div>
+        <nav class="project-list" id="project-list" aria-label="Проекты реестра"></nav>
+        <div class="sidebar-note">Выберите проект, чтобы посмотреть его этапы, сроки и историю.</div>
+      </div>
+    </aside>
+    <main id="main"><div class="loading-state" role="status">Загружаем данные реестра…</div></main>
+  </div>
+  <dialog class="history-dialog" id="history-dialog" aria-labelledby="history-title">
+    <div class="dialog-head"><div><h2 id="history-title">История проекта</h2><p id="history-subtitle"></p></div><button class="dialog-close" id="close-history" aria-label="Закрыть историю">×</button></div>
+    <ol class="history-list" id="full-history"></ol>
+  </dialog>
+
+  <dialog class="editor-dialog" id="editor-dialog" aria-labelledby="editor-title">
+    <form id="editor-form">
+      <h2 id="editor-title"></h2><p class="editor-subtitle" id="editor-subtitle"></p>
+      <div id="editor-fields"></div><div class="editor-error" id="editor-error" role="alert" hidden></div>
+      <div class="editor-actions"><button class="button" type="button" id="cancel-editor">Отмена</button><button class="button button-primary" id="save-editor" type="submit">Сохранить</button></div>
+    </form>
+  </dialog>
+  <div class="save-toast" id="save-toast" role="status" hidden></div>
+  <script src="/vendor/motion.js?v=bd4822a8b54e"></script>
+  <script src="/arc-motion.js?v=673017960165"></script>
+  <script src="/project.js?v=75d13f1ed242"></script>
+</body></html>
