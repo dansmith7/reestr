@@ -52,13 +52,17 @@
     function agreementsCard(p) {
       return `<section class="card side-card agreements-card"><h2>Текущие договорённости</h2><div class="note-block"><div class="note-label">Срок / ожидание</div>${p.timing ? `<p class="note-value">${esc(p.timing)}</p>` : '<p class="empty-note">Не указано в последнем статусе</p>'}</div><div class="note-block"><div class="note-label">Комментарий</div>${p.comment ? `<p class="note-value">${esc(p.comment)}</p>` : '<p class="empty-note">Комментарий не добавлен</p>'}</div></section>`;
     }
+    function forecastClass(forecast, actual) {
+      if (!forecast) return '';
+      return dateOnly(actual || today()) > dateOnly(forecast) ? 'forecast-overdue' : 'forecast-on-track';
+    }
     function keyDate(p, title, target, stageName) {
       const m = point(p, stageName);
       const fact = m.actual_date;
       const secondary = fact || m.forecast_date;
       return `<section class="card key-date"><div class="key-date-head"><span>${title}</span>${icon('calendar')}</div><div class="key-date-columns">
         <div><small>План проекта</small><strong class="${target ? '' : 'missing'}">${target ? fmt(target) : 'Не указан'}</strong></div>
-        <div><small>${fact ? 'Подтверждённый факт' : 'Текущий прогноз'}</small><strong class="${secondary ? '' : 'missing'}" ${fact ? 'style="color:var(--green)"' : ''}>${secondary ? fmt(secondary) : 'Не указан'}</strong></div>
+        <div><small>${fact ? 'Подтверждённый факт' : 'Текущий прогноз'}</small><strong class="${secondary ? fact ? 'fact-date' : forecastClass(secondary) : 'missing'}">${secondary ? fmt(secondary) : 'Не указан'}</strong></div>
       </div></section>`;
     }
     const phases = [
@@ -81,12 +85,12 @@
       const before = Number(s.position) < position(p);
       const delta = days(m.baseline_date, m.actual_date || m.forecast_date);
       const label = current ? 'Текущий статус' : m.actual_date ? 'Факт подтверждён' : before ? 'До текущего статуса' : '';
-      const cell = (value, late, label) => `<span data-label="${label}" class="route-date ${!value ? 'blank' : late ? 'late' : ''}">${fmt(value,'short')}</span>`;
+      const cell = (value, late, label, forecast = '') => `<span data-label="${label}" class="route-date ${!value ? 'blank' : forecast || (late ? 'late' : '')}">${fmt(value,'short')}</span>`;
       const stored = state.routes[p.id];
       const opened = stored ? stored.stages.includes(Number(s.id)) : current;
       return `<details data-stage="${Number(s.id)}" class="stage ${current ? 'current' : ''} ${m.actual_date ? 'actual' : ''}" ${opened ? 'open' : ''}>
         <summary><span class="stage-node">${m.actual_date ? '✓' : index + 1}</span><span class="stage-title">${esc(s.name)}${label ? `<span class="stage-label" style="display:block">${label}</span>` : ''}</span>
-        ${cell(m.baseline_date,false,'План')}${cell(m.forecast_date,!m.actual_date && delta > 0,'Прогноз')}${cell(m.actual_date,!!m.actual_date && delta > 0,'Факт')}<span class="chevron" aria-hidden="true">⌄</span></summary>
+        ${cell(m.baseline_date,false,'План')}${cell(m.forecast_date,false,'Прогноз',forecastClass(m.forecast_date,m.actual_date))}${cell(m.actual_date,!!m.actual_date && delta > 0,'Факт')}<span class="chevron" aria-hidden="true">⌄</span></summary>
         <div class="stage-details">${stageDetails(p,s,m)}</div></details>`;
     }
     function renderRoute(p) {
@@ -137,10 +141,13 @@
         <aside class="right-column" aria-label="Сведения о проекте">${submitted ? submissionCard : agreements}
         <section class="card side-card"><h2>Контрольные даты ${icon('calendar')}</h2>${upcoming(p)}</section>
         <section class="card side-card"><h2>Последние изменения <span class="count">${history.length}</span></h2><ol class="history-list">${historyHtml(history.slice(0,4))}</ol>${history.length > 4 ? `<button class="button history-more" data-action="history">Вся история · ${history.length} записей →</button>` : ''}</section></aside></div>
-        <div class="footer-actions"><div class="footer">Срез на ${fmt(selectedDate)} Фактические даты показаны только там, где они заполнены отдельно.</div></div>`;
+        <div class="footer-actions"><div class="footer">Срез на ${fmt(selectedDate)} Фактические даты показаны только там, где они заполнены отдельно.</div><button class="button button-danger" data-action="delete-project">Удалить проект</button></div>`;
       main.dataset.projectId = String(p.id);
       document.title = `${p.name} — карточка проекта`;
-      window.ArcMotion?.enter(main);
+      // Never transform the interactive root: re-rendering it can leave stale hit-test regions.
+      main.style.removeProperty('transform');
+      main.style.removeProperty('opacity');
+      window.ArcMotion?.attach(main);
     }
 
     function overviewUrl() { return '/index.html?date=' + encodeURIComponent(selectedDate); }
@@ -182,39 +189,49 @@
       if (!response.ok || result.error) throw new Error(result.error || 'Не удалось выполнить запрос');
       return result;
     }
-    async function loadDetails(id) {
-      if (data.details[id]) return;
-      const target = data, snapshotDate = selectedDate;
+    async function loadDetails(id, target = data, snapshotDate = selectedDate) {
+      if (target.details[id]) return;
       const [historyResult, milestonesResult] = await Promise.all([
         api('/api/history/' + id), api('/api/milestones/' + id),
       ]);
       if (!Array.isArray(historyResult.history) || !Array.isArray(milestonesResult.milestones)) throw new Error('Неверный формат истории или вех проекта');
-      if (target !== data) return;
       target.details[id] = {
         history: historyResult.history.filter(h => dateOnly(h.created_at) <= snapshotDate),
         milestones: milestonesResult.milestones,
       };
     }
-    async function loadRegistry() {
+    async function loadRegistry({ showLoading = true } = {}) {
       const generation = ++requestGeneration;
-      loading();
+      if (showLoading) loading();
       try {
-        const result = await api('/api/data?date=' + encodeURIComponent(selectedDate));
+        const snapshotDate = selectedDate;
+        const result = await api('/api/data?date=' + encodeURIComponent(snapshotDate));
         if (generation !== requestGeneration) return false;
         if (!Array.isArray(result.projects) || !Array.isArray(result.stages)) throw new Error('Не удалось прочитать список проектов');
-        data = { ...result, details: {} };
-        orderedStages = [...data.stages].sort((a,b) => Number(a.position) - Number(b.position));
-        if (state.id == null) state.id = data.projects[0]?.id;
-        renderProjects();
-        if (!currentProject()) throw new Error('Проект не найден на выбранную дату. Выберите другой проект или измените дату среза.');
-        await loadDetails(state.id);
+        const next = { ...result, details: {} };
+        const id = state.id ?? next.projects[0]?.id;
+        if (!next.projects.some(p => p.id === id)) {
+          data = next;
+          orderedStages = [...data.stages].sort((a,b) => Number(a.position) - Number(b.position));
+          renderProjects();
+          throw new Error('Проект не найден на выбранную дату. Выберите другой проект или измените дату среза.');
+        }
+        // Build a complete fresh snapshot before replacing the visible card.
+        await loadDetails(id, next, snapshotDate);
         if (generation !== requestGeneration) return false;
+        data = next;
+        state.id = id;
+        orderedStages = [...data.stages].sort((a,b) => Number(a.position) - Number(b.position));
         syncNavigation();
+        renderProjects();
         main.removeAttribute('aria-busy');
         renderMain();
         return true;
       } catch (error) {
-        if (generation === requestGeneration) showError(error);
+        if (generation === requestGeneration) {
+          if (showLoading) showError(error);
+          else toast('Изменения сохранены. Обновить карточку не удалось: ' + error.message);
+        }
         return false;
       }
     }
@@ -283,16 +300,12 @@
       editorDialog.showModal();
       window.ArcMotion?.dialog(editorDialog, true);
     }
-    async function hideDialog(element) {
-      const animation = window.ArcMotion?.dialog(element, false);
-      if (animation) await animation;
-      if (element.open) {
-        const closed = new Promise(resolve => element.addEventListener('close', resolve, { once: true }));
-        element.close();
-        await closed;
-      }
-      element.style.opacity = '';
-      element.style.transform = '';
+    function hideDialog(element) {
+      // Close the native modal synchronously so no invisible top-layer surface can intercept clicks.
+      window.ArcMotion?.resetDialog(element);
+      if (element.open) element.close();
+      element.style.removeProperty('opacity');
+      element.style.removeProperty('transform');
     }
     document.getElementById('cancel-editor').addEventListener('click', () => { if (!saving) hideDialog(editorDialog); });
     editorDialog.addEventListener('cancel', event => { event.preventDefault(); if (!saving) hideDialog(editorDialog); });
@@ -326,10 +339,10 @@
           delete state.routes[savedEditor.projectId];
           main.dataset.projectId = '';
         }
-        await hideDialog(editorDialog);
+        hideDialog(editorDialog);
         editorDialog.removeAttribute('style');
         toast(savedEditor.mode === 'status' ? 'Статус проекта обновлён' : savedEditor.mode === 'targets' ? 'Плановые даты сохранены' : 'Даты этапа сохранены');
-        await loadRegistry();
+        await loadRegistry({ showLoading: false });
         const selector = `[data-editor="${savedEditor.mode}"]` + (savedEditor.mode === 'milestone' ? `[data-stage="${savedEditor.stageId}"]` : '');
         main.querySelector(selector)?.focus({ preventScroll: true });
       } catch (error) {
@@ -359,6 +372,19 @@
       if (edit) { openEditor(edit.dataset.editor, edit.dataset.stage); return; }
       const action = event.target.closest('[data-action]');
       if (!action) return;
+      if (action.dataset.action === 'delete-project') {
+        const p = currentProject();
+        if (!p || !confirm(`Удалить проект «${p.name}» из списка? История останется в базе.`)) return;
+        action.disabled = true;
+        try {
+          await api('/api/projects/' + p.id, { method: 'DELETE' });
+          location.assign(overviewUrl());
+        } catch (error) {
+          toast('Не удалось удалить проект: ' + error.message);
+          action.disabled = false;
+        }
+        return;
+      }
       if (action.dataset.action === 'retry') loadRegistry();
       if (action.dataset.action === 'print') window.print();
       if (action.dataset.action === 'history') {

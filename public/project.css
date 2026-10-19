@@ -277,7 +277,6 @@
 /* Keep horizontally scrolling project chips inside the narrow grid track. */
 .sidebar,.sidebar-inner { min-width:0; }
 @media(max-width:1000px) { .layout { grid-template-columns:minmax(0,1fr); } }
-.key-date strong[style] { color:#398815!important; }
 
 @media(max-width:1000px) { .project-list { align-items:flex-start; } .project-name-text { display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; } }
 
@@ -286,3 +285,8 @@
 .right-column .key-date-columns { grid-template-columns:1fr; gap:20px; }
 .right-column .key-date-columns > div + div { border-left:0; padding-left:0; }
 @media(max-width:700px) { .key-dates .agreements-card { padding:22px; } }
+
+    .key-date strong.forecast-on-track,.route-date.forecast-on-track,.fact-date { color:#398815; }
+    .key-date strong.forecast-overdue,.route-date.forecast-overdue { color:#D8433A; }
+
+.button-danger { background:#FFECEC; color:#D8433A; border-color:#f1cecb; }

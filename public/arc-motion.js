@@ -18,6 +18,7 @@
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const animate = (...args) => window.ReestrMotion?.animate(...args);
   const disclosures = new WeakMap();
+  const dialogAnimations = new WeakMap();
 
   function attach(root = document) {
     root.querySelectorAll('details.stage, details.past-stages').forEach(element => {
@@ -113,14 +114,26 @@
       })?.then(() => { element.style.transform = ''; });
     });
   }
-  function dialog(element, opening) {
-    if (!window.ReestrMotion) return null;
-    return animate(element,
-      reduced.matches ? { opacity: opening ? [0, 1] : [1, 0] } : {
-        opacity: opening ? [0, 1] : [1, 0],
-        y: opening ? [12, 0] : [0, 6],
-        scale: opening ? [0.985, 1] : [1, 0.985],
-      }, opening && !reduced.matches ? tokens.spring.smooth : { duration: tokens.duration.instant });
+  function resetDialog(element) {
+    const previous = dialogAnimations.get(element);
+    if (previous) {
+      previous.controls?.stop();
+      previous.surface.style.removeProperty('opacity');
+      previous.surface.style.removeProperty('transform');
+      dialogAnimations.delete(element);
+    }
   }
-  window.ArcMotion = { tokens, attach, enter, cards, dialog };
+  function dialog(element, opening) {
+    resetDialog(element);
+    if (!opening || !window.ReestrMotion) return null;
+    // Animate the contents, never the native dialog/top-layer surface itself.
+    const surface = element.querySelector(':scope > form') || element.querySelector('.history-list') || element.firstElementChild;
+    if (!surface) return null;
+    const controls = animate(surface,
+      reduced.matches ? { opacity: [0, 1] } : { opacity: [0, 1], y: [8, 0] },
+      reduced.matches ? { duration: tokens.duration.instant } : tokens.spring.smooth);
+    dialogAnimations.set(element, { surface, controls });
+    return controls;
+  }
+  window.ArcMotion = { tokens, attach, enter, cards, dialog, resetDialog };
 })();

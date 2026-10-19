@@ -210,6 +210,7 @@
   <div class="toolbar">
     <div class="section-title">Проекты <span style="color:#b0b0b0;font-weight:600;">(нажмите на проект, чтобы открыть карточку)</span></div>
     <div class="toolbar-actions">
+      <button class="btn btn-secondary" id="btnShowReceived" aria-pressed="false">Показать полученные записи</button>
       <button class="btn btn-primary" id="btnAddProject">+ Новый проект</button>
     </div>
   </div>
@@ -333,10 +334,11 @@
 </div>
 
 <script src="/vendor/motion.js?v=bd4822a8b54e"></script>
-<script src="/arc-motion.js?v=673017960165"></script>
+<script src="/arc-motion.js?v=cfeacb8730fb"></script>
 <script>
 let STATE = { stages: [], projects: [] };
 let COMPARE = null;
+let SHOW_RECEIVED = false;
 const IS_LOCAL_PREVIEW =
   window.location.protocol === 'file:' ||
   ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
@@ -553,11 +555,20 @@ function escapeHtml(value){
 
 function renderProjects(){
   const list = document.getElementById('projectsList');
+  const receivedCount = STATE.projects.filter(p => p.status === 'Реестр получен').length;
+  const toggle = document.getElementById('btnShowReceived');
+  toggle.textContent = (SHOW_RECEIVED ? 'Скрыть полученные записи' : 'Показать полученные записи') + ' (' + receivedCount + ')';
+  toggle.setAttribute('aria-pressed', String(SHOW_RECEIVED));
+  const visibleProjects = STATE.projects.filter(p => SHOW_RECEIVED || p.status !== 'Реестр получен');
   if(!STATE.projects.length){
     list.innerHTML = '<div style="grid-column:1/-1;color:#8b8b8b;font-weight:700;text-align:center;padding:40px 0;">На эту дату проектов нет. Добавьте проект или выберите другую дату.</div>';
     return;
   }
-  list.innerHTML = STATE.projects.map(p => {
+  if (!visibleProjects.length) {
+    list.innerHTML = '<div style="grid-column:1/-1;color:#777;padding:40px 0;text-align:center;">Все записи на выбранную дату уже получены. Нажмите «Показать полученные записи», чтобы открыть проекты.</div>';
+    return;
+  }
+  list.innerHTML = visibleProjects.map(p => {
     const total = p.total_stages || STATE.stages.length;
     const completed = p.status === 'Реестр получен';
     const url = '/project.html?id=' + encodeURIComponent(p.id) + '&date=' + encodeURIComponent(STATE.snapshot_date || todayIso());
@@ -586,6 +597,11 @@ function renderProjects(){
   });
   window.ArcMotion?.cards(list);
 }
+
+document.getElementById('btnShowReceived').addEventListener('click', () => {
+  SHOW_RECEIVED = !SHOW_RECEIVED;
+  renderProjects();
+});
 
 async function loadHistory(pid){
   if(STATE.static_preview){
