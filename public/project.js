@@ -24,6 +24,11 @@
     const stageOrdinal = p => orderedStages.findIndex(s => Number(s.id) === Number(p.stage_id));
     const finished = p => /реестр получен/i.test(p.status || '');
     const icon = id => `<svg aria-hidden="true"><use href="#icon-${id}"/></svg>`;
+    const rubles = value => value === null || value === undefined || value === '' ? '—' : `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(value))} ₽`;
+    function safeLink(value) {
+      try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : null; }
+      catch { return null; }
+    }
     const findStage = name => orderedStages.find(s => s.name === name);
     function point(p, name) { const s = findStage(name); return detail(p).milestones.find(m => Number(m.stage_id) === Number(s?.id)) || {}; }
     function alerts(p) {
@@ -120,6 +125,18 @@
       if (!history.length) return '<li class="empty-note">История изменений пока пуста.</li>';
       return history.map(h => `<li class="history-item"><time datetime="${esc(dateOnly(h.effective_date || h.created_at))}">${fmt(h.effective_date || h.created_at)}</time><b>${esc(h.stage_name || 'Статус обновлён')}</b>${h.comment ? `<p>${esc(h.comment)}</p>` : ''}${h.timing ? `<p>${esc(h.timing)}</p>` : ''}</li>`).join('');
     }
+    function passportHtml(p) {
+      const passport = p.passport || {};
+      const gisp = safeLink(passport.gisp_url);
+      const application = safeLink(passport.application_url);
+      return `<section class="passport-section" aria-labelledby="passport-title">
+        <div class="passport-heading"><div><span class="overline">Дополнительные сведения</span><h2 id="passport-title">Паспорт проекта</h2></div><button class="button" data-editor="passport">Изменить данные</button></div>
+        <div class="passport-grid">
+          <div class="card passport-card"><h3>Экономика</h3><dl><div><dt>Стоимость тестовой партии</dt><dd>${rubles(passport.pilot_cost)}</dd></div><div><dt>Стоимость массового производства</dt><dd>${rubles(passport.production_cost)}</dd></div></dl></div>
+          <div class="card passport-card"><h3>Заявка в ГИСП</h3><dl><div><dt>Номер заявки</dt><dd>${passport.application_number ? esc(passport.application_number) : '—'}</dd></div><div><dt>Ссылка на ГИСП</dt><dd>${gisp ? `<a href="${esc(gisp)}" target="_blank" rel="noopener noreferrer">Открыть ГИСП ↗</a>` : '—'}</dd></div><div><dt>Ссылка на заявку</dt><dd>${application ? `<a href="${esc(application)}" target="_blank" rel="noopener noreferrer">Открыть заявку ↗</a>` : '—'}</dd></div></dl></div>
+        </div>
+      </section>`;
+    }
     function renderMain() {
       const p = currentProject();
       captureRouteState();
@@ -134,7 +151,7 @@
         <div class="breadcrumb"><a href="${overviewUrl()}">Проекты</a> <span>/</span><span>Паспорт № ${String(p.id).padStart(3,'0')}</span></div>
         <div class="heading"><div><h1>${esc(p.name)}</h1><div class="project-meta"><span class="status ${done ? 'finished' : ''}">${done ? 'Реестр получен' : 'В работе'}</span><span>·</span><span>Статус от ${fmt(p.updated_at)}</span></div></div><button class="button print-button" data-action="print">${icon('print')}Печать</button></div>
         <div class="heading-actions"><button class="button button-primary" data-editor="status">Обновить статус</button><button class="button" data-editor="targets">Плановые даты проекта</button></div>
-        ${selectedDate !== today() ? '<div class="historical-note">Статус и история показаны на выбранную дату. Плановые даты и вехи — актуальные.</div>' : ''}
+        ${selectedDate !== today() ? '<div class="historical-note">Статус и история показаны на выбранную дату. Плановые даты, вехи и паспорт проекта — актуальные.</div>' : ''}
         <section class="card current-card"><div><div class="overline">${done ? 'Результат проекта' : 'Где проект сейчас'}</div><h2>${esc(p.status || 'Статус ещё не указан')}</h2><div class="next-line">${done ? 'Все этапы маршрута пройдены по текущему статусу.' : next ? `Следующий этап: <b>${esc(next.name)}</b>` : 'Следующий этап пока не определён.'}</div></div><div class="stage-position"><strong>${String(ordinal + 1).padStart(2,'0')} <span>/ ${orderedStages.length}</span></strong><small>Положение в маршруте</small><div class="segment-track" aria-hidden="true">${orderedStages.map((s,i) => `<i class="${i < ordinal ? 'passed' : i === ordinal ? 'current' : ''}"></i>`).join('')}</div></div></section>
         ${alerts(p).map(a => `<div class="alert">${icon('alert')}<span>${esc(a)}</span></div>`).join('')}
         <div class="key-dates">${submitted ? agreements : submissionCard}${keyDate(p,'Получение реестровой записи',p.planned_registry_received_date,'Реестр получен')}</div>
@@ -142,6 +159,7 @@
         <aside class="right-column" aria-label="Сведения о проекте">${submitted ? submissionCard : agreements}
         <section class="card side-card"><h2>Контрольные даты ${icon('calendar')}</h2>${upcoming(p)}</section>
         <section class="card side-card"><h2>Последние изменения <span class="count">${history.length}</span></h2><ol class="history-list">${historyHtml(history.slice(0,4))}</ol>${history.length > 4 ? `<button class="button history-more" data-action="history">Вся история · ${history.length} записей →</button>` : ''}</section></aside></div>
+        ${passportHtml(p)}
         <div class="footer-actions"><div class="footer">Срез на ${fmt(selectedDate)} Фактические даты показаны только там, где они заполнены отдельно.</div><button class="button button-danger" data-action="delete-project">Удалить проект</button></div>`;
       main.dataset.projectId = String(p.id);
       document.title = `${p.name} — карточка проекта`;
@@ -286,6 +304,15 @@
         title = 'Плановые даты проекта';
         fields = field('planned_submission_date', 'Подача заявки в ГИСП', 'date', dateOnly(p.planned_submission_date)) +
           field('planned_registry_received_date', 'Получение реестровой записи', 'date', dateOnly(p.planned_registry_received_date));
+      } else if (mode === 'passport') {
+        const passport = p.passport || {};
+        title = 'Паспорт проекта';
+        fields = field('pilot_cost', 'Стоимость тестовой партии, ₽', 'number', passport.pilot_cost ?? '') +
+          field('production_cost', 'Стоимость массового производства, ₽', 'number', passport.production_cost ?? '') +
+          field('gisp_url', 'Ссылка на ГИСП', 'url', passport.gisp_url || '') +
+          field('application_number', 'Номер заявки', 'text', passport.application_number || '') +
+          field('application_url', 'Ссылка на заявку', 'url', passport.application_url || '');
+        fields = fields.replaceAll('type="number"', 'type="number" min="0" step="0.01"');
       } else if (mode === 'milestone') {
         const m = detail(p).milestones.find(m => Number(m.stage_id) === Number(stageId));
         if (!m) return;
@@ -332,6 +359,9 @@
         } else if (savedEditor.mode === 'targets') {
           path = '/api/projects/' + savedEditor.projectId + '/targets';
           payload = { planned_submission_date: values.planned_submission_date || null, planned_registry_received_date: values.planned_registry_received_date || null };
+        } else if (savedEditor.mode === 'passport') {
+          path = '/api/projects/' + savedEditor.projectId + '/passport';
+          payload = { pilot_cost: values.pilot_cost, production_cost: values.production_cost, gisp_url: values.gisp_url, application_number: values.application_number, application_url: values.application_url };
         } else {
           path = '/api/milestones/' + savedEditor.projectId;
           payload = { stage_id: savedEditor.stageId, baseline_date: values.baseline_date || null, forecast_date: values.forecast_date || null, actual_date: values.actual_date || null, delay_reason: values.delay_reason, comment: values.comment };
@@ -345,7 +375,7 @@
         }
         hideDialog(editorDialog);
         editorDialog.removeAttribute('style');
-        toast(savedEditor.mode === 'status' ? 'Статус проекта обновлён' : savedEditor.mode === 'targets' ? 'Плановые даты сохранены' : 'Даты этапа сохранены');
+        toast(savedEditor.mode === 'status' ? 'Статус проекта обновлён' : savedEditor.mode === 'targets' ? 'Плановые даты сохранены' : savedEditor.mode === 'passport' ? 'Паспорт проекта сохранён' : 'Даты этапа сохранены');
         await loadRegistry({ showLoading: false });
         const selector = `[data-editor="${savedEditor.mode}"]` + (savedEditor.mode === 'milestone' ? `[data-stage="${savedEditor.stageId}"]` : '');
         main.querySelector(selector)?.focus({ preventScroll: true });
