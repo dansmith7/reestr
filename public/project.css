@@ -286,7 +286,7 @@
 .right-column .key-date-columns > div + div { border-left:0; padding-left:0; }
 @media(max-width:700px) { .key-dates .agreements-card { padding:22px; } }
 
-    .key-date strong.forecast-on-track,.route-date.forecast-on-track,.fact-date { color:#398815; }
+    .key-date strong.forecast-on-track,.route-date.forecast-on-track,.key-date strong.fact-date { color:#398815; }
     .key-date strong.forecast-overdue,.route-date.forecast-overdue { color:#D8433A; }
 
 .button-danger { background:#FFECEC; color:#D8433A; border-color:#f1cecb; }
