@@ -123,6 +123,7 @@
     function renderMain() {
       const p = currentProject();
       captureRouteState();
+      window.ArcMotion?.resetProject(main);
       if (!p) { main.innerHTML = '<p>В срезе нет проектов.</p>'; return; }
       const done = finished(p), ordinal = stageOrdinal(p), next = orderedStages[ordinal + 1];
       const history = detail(p).history;
@@ -173,6 +174,7 @@
     }
     function loading() {
       captureRouteState();
+      window.ArcMotion?.resetProject(main);
       main.dataset.projectId = '';
       main.setAttribute('aria-busy', 'true');
       main.innerHTML = '<div class="loading-state" role="status">Загружаем карточку проекта…</div>';
@@ -226,6 +228,7 @@
         renderProjects();
         main.removeAttribute('aria-busy');
         renderMain();
+        if (showLoading) window.ArcMotion?.projectEnter(main);
         return true;
       } catch (error) {
         if (generation === requestGeneration) {
@@ -248,6 +251,7 @@
         if (generation !== requestGeneration) return;
         main.removeAttribute('aria-busy');
         renderMain();
+        window.ArcMotion?.projectEnter(main);
       } catch (error) { if (generation === requestGeneration) showError(error); }
     }
 

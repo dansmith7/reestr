@@ -19,6 +19,32 @@
   const animate = (...args) => window.ReestrMotion?.animate(...args);
   const disclosures = new WeakMap();
   const dialogAnimations = new WeakMap();
+  const projectAnimations = new WeakMap();
+
+  function resetProject(root) {
+    projectAnimations.get(root)?.forEach(animation => animation.cancel());
+    projectAnimations.delete(root);
+  }
+  function projectEnter(root) {
+    resetProject(root);
+    if (reduced.matches) return;
+    // Animate disposable content blocks, leaving the interactive root untouched.
+    // No forwards fill or inline styles survive the transition.
+    const animations = [...root.children].filter(element => element.animate).map((element, index) => {
+      const animation = element.animate([
+        { opacity: 0, transform: 'translateY(8px)' },
+        { opacity: 1, transform: 'translateY(0)' },
+      ], {
+        duration: tokens.spring.smooth.visualDuration * 1000,
+        delay: Math.min(index, 4) * tokens.stagger.item * 1000,
+        easing: `cubic-bezier(${tokens.ease.enter.join(',')})`,
+        fill: 'backwards',
+      });
+      animation.onfinish = () => animation.cancel();
+      return animation;
+    });
+    projectAnimations.set(root, animations);
+  }
 
   function attach(root = document) {
     root.querySelectorAll('details.stage, details.past-stages').forEach(element => {
@@ -135,5 +161,5 @@
     dialogAnimations.set(element, { surface, controls });
     return controls;
   }
-  window.ArcMotion = { tokens, attach, enter, cards, dialog, resetDialog };
+  window.ArcMotion = { tokens, attach, enter, cards, dialog, resetDialog, projectEnter, resetProject };
 })();
