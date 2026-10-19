@@ -21,7 +21,7 @@
     .snapshot-dot { width:7px; height:7px; flex:none; border-radius:50%; background:#9b9b9b; }
     .layout { display:grid; grid-template-columns:290px minmax(0,1fr); max-width:1800px; margin:0 auto; }
     .sidebar { padding:34px 18px; border-right:1px solid var(--line); min-height:calc(100vh - 86px); }
-    .sidebar-inner { position:sticky; top:25px; }
+    .sidebar-inner { position:static; }
     .sidebar-heading { display:flex; align-items:center; justify-content:space-between; padding:0 12px; margin-bottom:19px; }
     .sidebar-heading h2 { font-size:17px; font-weight:800; margin:0; }
     .count { color:#777; font-size:13px; border:1px solid var(--line); border-radius:6px; padding:1px 8px; }
