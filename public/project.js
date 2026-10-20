@@ -1,14 +1,16 @@
 
     'use strict';
     let data = { stages: [], projects: [], details: {} };
-    const state = { id: null, search: '', routes: {} };
+    const state = { id: null, search: '', routes: {}, calendarMonth: null };
     let selectedDate;
     let requestGeneration = 0;
     let editor = null;
+    let editingCriticalId = null;
     const main = document.getElementById('main');
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const dateOnly = value => value ? String(value).slice(0,10) : '';
     const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); };
+    state.calendarMonth = today().slice(0, 7);
     function validDate(value) { return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(value+'T12:00:00Z').getTime()) && new Date(value+'T12:00:00Z').toISOString().slice(0,10) === value ? value : null; }
     selectedDate = validDate(new URLSearchParams(location.search).get('date')) || today();
     const stamp = value => value ? new Date(dateOnly(value) + 'T12:00:00Z').getTime() : null;
@@ -18,7 +20,7 @@
       return new Date(dateOnly(value) + 'T12:00:00Z').toLocaleDateString('ru-RU', format === 'short' ? { day:'2-digit', month:'2-digit', year:'2-digit' } : { day:'numeric', month:'short', year:'numeric' });
     }
     const currentProject = () => data.projects.find(p => p.id === state.id);
-    const detail = p => data.details[String(p.id)] || { history: [], milestones: [] };
+    const detail = p => data.details[String(p.id)] || { history: [], milestones: [], criticalPoints: [] };
     const position = p => p.stage_index == null ? -1 : Number(p.stage_index);
     let orderedStages = [];
     const stageOrdinal = p => orderedStages.findIndex(s => Number(s.id) === Number(p.stage_id));
@@ -100,7 +102,9 @@
     }
     function renderRoute(p) {
       const previous = orderedStages.filter(s => Number(s.position) < position(p));
-      const visible = orderedStages.filter(s => Number(s.position) >= position(p));
+      const upcoming = orderedStages.filter(s => Number(s.position) >= position(p));
+      const visible = upcoming.slice(0, 5);
+      const later = upcoming.slice(5);
       function groupedRows(stages) {
         return phases.map((phase,i) => {
           const group = stages.filter(s => Number(s.position) >= phase.from && Number(s.position) <= phase.to);
@@ -109,7 +113,8 @@
         }).join('');
       }
       const past = previous.length ? `<details class="past-stages" ${state.routes[p.id]?.past ? 'open' : ''}><summary><span>Пройденные этапы</span><span class="past-count">${previous.length}</span><span class="past-action"><span class="past-open">Показать</span><span class="past-close">Скрыть</span></span><span class="chevron" aria-hidden="true">⌄</span></summary><div class="past-stages-content">${groupedRows(previous)}</div></details>` : '';
-      return `<div class="route-labels"><span>Этап</span><span>План</span><span>Прогноз</span><span>Факт</span><span></span></div>${past}${groupedRows(visible)}<div class="legend"><span><i class="legend-dot current"></i>Текущий этап</span><span><i class="legend-dot actual"></i>Подтверждённый факт</span><span><i class="legend-dot"></i>Без фактической даты</span></div>`;
+      const future = later.length ? `<details class="future-stages" ${state.routes[p.id]?.future ? 'open' : ''}><summary><span>Дальнейшие этапы</span><span class="past-count">${later.length}</span><span class="past-action"><span class="past-open">Показать</span><span class="past-close">Скрыть</span></span><span class="chevron" aria-hidden="true">⌄</span></summary><div class="future-stages-content">${groupedRows(later)}</div></details>` : '';
+      return `<div class="route-labels"><span>Этап</span><span>План</span><span>Прогноз</span><span>Факт</span><span></span></div>${past}${groupedRows(visible)}${future}<div class="legend"><span><i class="legend-dot current"></i>Текущий этап</span><span><i class="legend-dot actual"></i>Подтверждённый факт</span><span><i class="legend-dot"></i>Без фактической даты</span></div>`;
     }
     function upcoming(p) {
       if (finished(p)) return '<p class="empty-note">Реестровая запись получена. Маршрут проекта завершён.</p>';
@@ -137,6 +142,97 @@
         </div>
       </section>`;
     }
+    function calendarEvents(p) {
+      const events = [];
+      for (const milestone of detail(p).milestones) {
+        const plan = dateOnly(milestone.baseline_date);
+        const forecast = dateOnly(milestone.forecast_date);
+        if (plan) events.push({ date: plan, title: milestone.stage_name, type: 'plan', label: 'План этапа' });
+        if (forecast && forecast !== plan) events.push({ date: forecast, title: milestone.stage_name, type: 'forecast', label: 'Прогноз этапа' });
+      }
+      for (const item of detail(p).criticalPoints || []) {
+        if (validDate(item.date)) events.push({ ...item, type: 'critical', label: 'Критическая точка' });
+      }
+      return events;
+    }
+    function calendarHtml(p) {
+      const [year, month] = state.calendarMonth.split('-').map(Number);
+      const first = new Date(Date.UTC(year, month - 1, 1));
+      const offset = (first.getUTCDay() + 6) % 7;
+      const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      const cells = Math.ceil((offset + daysInMonth) / 7) * 7;
+      const title = first.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+      const byDay = new Map();
+      for (const event of calendarEvents(p)) {
+        if (!byDay.has(event.date)) byDay.set(event.date, []);
+        byDay.get(event.date).push(event);
+      }
+      const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+      const daysHtml = Array.from({ length: cells }, (_, index) => {
+        const day = new Date(Date.UTC(year, month - 1, index - offset + 1));
+        const key = day.toISOString().slice(0, 10);
+        const outside = day.getUTCMonth() !== month - 1;
+        const events = byDay.get(key) || [];
+        return `<div class="calendar-day ${outside ? 'outside' : ''} ${key === today() ? 'is-today' : ''}">
+          <button class="calendar-day-number" data-calendar-date="${key}" aria-label="Показать события за ${fmt(key)}">${day.getUTCDate()}</button>
+          <div class="calendar-day-events">${events.map(event => event.type === 'critical'
+            ? `<button class="calendar-event critical" data-calendar-event-date="${key}" aria-label="${esc(event.title)}, критическая точка. Показать все события дня">${esc(event.title)}</button>`
+            : `<button class="calendar-event ${event.type}" data-calendar-event-date="${key}" aria-label="${esc(event.title)}, ${esc(event.label)}. Показать все события дня"><i aria-hidden="true"></i><span>${esc(event.title)}</span></button>`).join('')}</div>
+        </div>`;
+      }).join('');
+      return `<section class="project-calendar" id="project-calendar" aria-labelledby="project-calendar-title">
+        <div class="project-calendar-head"><div><span class="overline">Планирование</span><h2 id="project-calendar-title">Календарь проекта</h2><p>Плановые этапы подставляются из маршрута. Критические точки можно отметить вручную.</p></div><button class="button button-primary" data-calendar-add>+ Критическая точка</button></div>
+        <div class="project-calendar-toolbar"><div class="calendar-navigation"><button class="button calendar-nav" data-calendar-shift="-1" aria-label="Предыдущий месяц">←</button><h3 aria-live="polite">${esc(title)}</h3><button class="button calendar-nav" data-calendar-shift="1" aria-label="Следующий месяц">→</button><button class="button calendar-today" data-calendar-today>Сегодня</button></div><div class="calendar-key"><span><i class="plan"></i>План этапа</span><span><i class="forecast"></i>Прогноз</span><span><i class="critical"></i>Критическая точка</span></div></div>
+        <div class="calendar-scroll"><div class="calendar-board"><div class="calendar-weekdays">${weekdays.map(day => `<span>${day}</span>`).join('')}</div><div class="calendar-grid">${daysHtml}</div></div></div>
+      </section>`;
+    }
+    function refreshCalendar(direction = 0) {
+      const p = currentProject();
+      const old = document.getElementById('project-calendar');
+      if (p && old) {
+        old.outerHTML = calendarHtml(p);
+        window.ArcMotion?.calendarEnter(document.getElementById('project-calendar'), direction);
+      }
+    }
+    function openCriticalDialog(date = today(), id = null) {
+      const p = currentProject();
+      if (!p) return;
+      const item = id ? detail(p).criticalPoints.find(point => Number(point.id) === Number(id)) : null;
+      editingCriticalId = item?.id || null;
+      const dialog = document.getElementById('critical-dialog');
+      document.getElementById('critical-dialog-title').textContent = item ? 'Изменить критическую точку' : 'Новая критическая точка';
+      document.getElementById('critical-dialog-project').textContent = p.name;
+      document.getElementById('critical-date').value = item?.date || date;
+      document.getElementById('critical-name').value = item?.title || '';
+      document.getElementById('critical-delete').hidden = !item;
+      document.getElementById('critical-error').hidden = true;
+      dialog.showModal();
+      window.ArcMotion?.dialog(dialog, true);
+      document.getElementById('critical-name').focus();
+    }
+    function closeCriticalDialog() {
+      const dialog = document.getElementById('critical-dialog');
+      if (dialog.open) { window.ArcMotion?.resetDialog(dialog); dialog.close(); }
+      editingCriticalId = null;
+    }
+    function openCalendarDay(date) {
+      const p = currentProject();
+      if (!p || !validDate(date)) return;
+      const items = calendarEvents(p).filter(item => item.date === date);
+      document.getElementById('calendar-day-title').textContent = fmt(date);
+      document.getElementById('calendar-day-events').innerHTML = items.length
+        ? items.map(item => `<li class="calendar-day-item ${item.type}"><span class="calendar-day-item-kind">${esc(item.label)}</span><p>${esc(item.title)}</p>${item.type === 'critical' ? `<button class="button" data-day-edit="${Number(item.id)}">Изменить точку</button>` : ''}</li>`).join('')
+        : '<li class="empty-note">На эту дату событий пока нет.</li>';
+      const add = document.getElementById('calendar-day-add');
+      add.dataset.date = date;
+      const dialog = document.getElementById('calendar-day-dialog');
+      dialog.showModal();
+      window.ArcMotion?.dialog(dialog, true);
+    }
+    function closeCalendarDay() {
+      const dialog = document.getElementById('calendar-day-dialog');
+      if (dialog.open) { window.ArcMotion?.resetDialog(dialog); dialog.close(); }
+    }
     function renderMain() {
       const p = currentProject();
       captureRouteState();
@@ -151,14 +247,15 @@
         <div class="breadcrumb"><a href="${overviewUrl()}">Проекты</a> <span>/</span><span>Паспорт № ${String(p.id).padStart(3,'0')}</span></div>
         <div class="heading"><div><h1>${esc(p.name)}</h1><div class="project-meta"><span class="status ${done ? 'finished' : ''}">${done ? 'Реестр получен' : 'В работе'}</span><span>·</span><span>Статус от ${fmt(p.updated_at)}</span></div></div><button class="button print-button" data-action="print">${icon('print')}Печать</button></div>
         <div class="heading-actions"><button class="button button-primary" data-editor="status">Обновить статус</button><button class="button" data-editor="targets">Плановые даты проекта</button></div>
-        ${selectedDate !== today() ? '<div class="historical-note">Статус и история показаны на выбранную дату. Плановые даты, вехи и паспорт проекта — актуальные.</div>' : ''}
+        ${selectedDate !== today() ? '<div class="historical-note">Статус и история показаны на выбранную дату. Плановые даты, вехи, календарные точки и паспорт проекта — актуальные.</div>' : ''}
         <section class="card current-card"><div><div class="overline">${done ? 'Результат проекта' : 'Где проект сейчас'}</div><h2>${esc(p.status || 'Статус ещё не указан')}</h2><div class="next-line">${done ? 'Все этапы маршрута пройдены по текущему статусу.' : next ? `Следующий этап: <b>${esc(next.name)}</b>` : 'Следующий этап пока не определён.'}</div></div><div class="stage-position"><strong>${String(ordinal + 1).padStart(2,'0')} <span>/ ${orderedStages.length}</span></strong><small>Положение в маршруте</small><div class="segment-track" aria-hidden="true">${orderedStages.map((s,i) => `<i class="${i < ordinal ? 'passed' : i === ordinal ? 'current' : ''}"></i>`).join('')}</div></div></section>
         ${alerts(p).map(a => `<div class="alert">${icon('alert')}<span>${esc(a)}</span></div>`).join('')}
         <div class="key-dates">${submitted ? agreements : submissionCard}${keyDate(p,'Получение реестровой записи',p.planned_registry_received_date,'Реестр получен')}</div>
-        <div class="content-grid"><section><div class="section-title"><h2>Маршрут проекта</h2><small>${orderedStages.length} этапов</small></div><div class="route-subtitle">Текущий и будущие этапы · пройденные свёрнуты</div><div class="card route" id="route">${renderRoute(p)}</div></section>
+        <div class="content-grid"><section><div class="section-title"><h2>Маршрут проекта</h2><small>${orderedStages.length} этапов</small></div><div class="route-subtitle">Текущий этап и четыре следующих · остальные свёрнуты</div><div class="card route" id="route">${renderRoute(p)}</div></section>
         <aside class="right-column" aria-label="Сведения о проекте">${submitted ? submissionCard : agreements}
         <section class="card side-card"><h2>Контрольные даты ${icon('calendar')}</h2>${upcoming(p)}</section>
         <section class="card side-card"><h2>Последние изменения <span class="count">${history.length}</span></h2><ol class="history-list">${historyHtml(history.slice(0,4))}</ol>${history.length > 4 ? `<button class="button history-more" data-action="history">Вся история · ${history.length} записей →</button>` : ''}</section></aside></div>
+        ${calendarHtml(p)}
         ${passportHtml(p)}
         <div class="footer-actions"><div class="footer">Срез на ${fmt(selectedDate)} Фактические даты показаны только там, где они заполнены отдельно.</div><button class="button button-danger" data-action="delete-project">Удалить проект</button></div>`;
       main.dataset.projectId = String(p.id);
@@ -167,6 +264,7 @@
       main.style.removeProperty('transform');
       main.style.removeProperty('opacity');
       window.ArcMotion?.attach(main);
+      window.ArcMotion?.calendarEnter(document.getElementById('project-calendar'));
     }
 
     function overviewUrl() { return '/index.html?date=' + encodeURIComponent(selectedDate); }
@@ -185,8 +283,10 @@
       const open = element => element.querySelector(':scope > summary')?.getAttribute('aria-expanded') === 'true' ||
         (!element.querySelector(':scope > summary')?.hasAttribute('aria-expanded') && element.open);
       const past = main.querySelector('.past-stages');
+      const future = main.querySelector('.future-stages');
       state.routes[id] = {
         past: past ? open(past) : false,
+        future: future ? open(future) : false,
         stages: [...main.querySelectorAll('details.stage')].filter(open).map(s => Number(s.dataset.stage)),
       };
     }
@@ -211,13 +311,14 @@
     }
     async function loadDetails(id, target = data, snapshotDate = selectedDate) {
       if (target.details[id]) return;
-      const [historyResult, milestonesResult] = await Promise.all([
-        api('/api/history/' + id), api('/api/milestones/' + id),
+      const [historyResult, milestonesResult, criticalResult] = await Promise.all([
+        api('/api/history/' + id), api('/api/milestones/' + id), api('/api/projects/' + id + '/critical-points'),
       ]);
-      if (!Array.isArray(historyResult.history) || !Array.isArray(milestonesResult.milestones)) throw new Error('Неверный формат истории или вех проекта');
+      if (!Array.isArray(historyResult.history) || !Array.isArray(milestonesResult.milestones) || !Array.isArray(criticalResult.critical_points)) throw new Error('Неверный формат данных проекта');
       target.details[id] = {
         history: historyResult.history.filter(h => dateOnly(h.created_at) <= snapshotDate),
         milestones: milestonesResult.milestones,
+        criticalPoints: criticalResult.critical_points,
       };
     }
     async function loadRegistry({ showLoading = true } = {}) {
@@ -399,9 +500,80 @@
       syncNavigation(true);
       loadRegistry();
     });
+    document.getElementById('critical-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const p = currentProject();
+      const date = document.getElementById('critical-date').value;
+      const title = document.getElementById('critical-name').value.trim();
+      if (!p || !validDate(date) || !title) return;
+      const button = document.getElementById('critical-save');
+      button.disabled = true;
+      try {
+        const result = await api('/api/projects/' + p.id + '/critical-points', {
+          method: editingCriticalId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ point_id: editingCriticalId, date, title }),
+        });
+        const points = detail(p).criticalPoints;
+        if (editingCriticalId) {
+          const index = points.findIndex(item => Number(item.id) === Number(editingCriticalId));
+          if (index >= 0) points[index] = result.point;
+        } else points.push(result.point);
+        state.calendarMonth = date.slice(0, 7);
+        closeCriticalDialog();
+        refreshCalendar();
+        toast('Критическая точка сохранена');
+      } catch (error) {
+        const alert = document.getElementById('critical-error');
+        alert.textContent = error.message;
+        alert.hidden = false;
+      } finally {
+        button.disabled = false;
+      }
+    });
+    document.getElementById('critical-cancel').addEventListener('click', closeCriticalDialog);
+    document.getElementById('critical-dialog').addEventListener('cancel', event => { event.preventDefault(); closeCriticalDialog(); });
+    document.getElementById('calendar-day-close').addEventListener('click', closeCalendarDay);
+    document.getElementById('calendar-day-dialog').addEventListener('cancel', event => { event.preventDefault(); closeCalendarDay(); });
+    document.getElementById('calendar-day-add').addEventListener('click', event => { const date = event.currentTarget.dataset.date; closeCalendarDay(); openCriticalDialog(date); });
+    document.getElementById('critical-delete').addEventListener('click', async () => {
+      const p = currentProject();
+      if (!p || !editingCriticalId) return;
+      const button = document.getElementById('critical-delete');
+      button.disabled = true;
+      try {
+        await api('/api/projects/' + p.id + '/critical-points', {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ point_id: editingCriticalId }),
+        });
+        detail(p).criticalPoints = detail(p).criticalPoints.filter(point => Number(point.id) !== Number(editingCriticalId));
+        closeCriticalDialog();
+        refreshCalendar();
+        toast('Критическая точка удалена');
+      } catch (error) {
+        const alert = document.getElementById('critical-error');
+        alert.textContent = error.message;
+        alert.hidden = false;
+      } finally { button.disabled = false; }
+    });
     document.addEventListener('click', async event => {
       const project = event.target.closest('[data-project]');
       if (project) { selectProject(project.dataset.project); return; }
+      const month = event.target.closest('[data-calendar-shift]');
+      if (month) {
+        const [year, number] = state.calendarMonth.split('-').map(Number);
+        state.calendarMonth = new Date(Date.UTC(year, number - 1 + Number(month.dataset.calendarShift), 1)).toISOString().slice(0, 7);
+        refreshCalendar(Number(month.dataset.calendarShift));
+        return;
+      }
+      if (event.target.closest('[data-calendar-today]')) { const direction = state.calendarMonth < today().slice(0, 7) ? 1 : -1; state.calendarMonth = today().slice(0, 7); refreshCalendar(direction); return; }
+      const dayEdit = event.target.closest('[data-day-edit]');
+      if (dayEdit) { const id = dayEdit.dataset.dayEdit; closeCalendarDay(); openCriticalDialog(today(), id); return; }
+      const calendarEvent = event.target.closest('[data-calendar-event-date]');
+      if (calendarEvent) { openCalendarDay(calendarEvent.dataset.calendarEventDate); return; }
+      const day = event.target.closest('[data-calendar-date]');
+      if (day) { openCalendarDay(day.dataset.calendarDate); return; }
+      if (event.target.closest('[data-calendar-add]')) { openCriticalDialog(state.calendarMonth === today().slice(0, 7) ? today() : state.calendarMonth + '-01'); return; }
       const edit = event.target.closest('[data-editor]');
       if (edit) { openEditor(edit.dataset.editor, edit.dataset.stage); return; }
       const action = event.target.closest('[data-action]');
@@ -440,7 +612,7 @@
       if (date !== selectedDate) { selectedDate = date; state.routes = {}; loadRegistry(); }
       else selectProject(state.id, false);
     });
-    state.id = Number(new URLSearchParams(location.search).get('id')) || null;
+    state.id = Number(new URLSearchParams(location.search).get('id')) || 2;
     document.getElementById('snapshot-date').value = selectedDate;
     syncNavigation();
     loadRegistry();

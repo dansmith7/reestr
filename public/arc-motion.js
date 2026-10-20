@@ -47,10 +47,10 @@
   }
 
   function attach(root = document) {
-    root.querySelectorAll('details.stage, details.past-stages').forEach(element => {
+    root.querySelectorAll('details.stage, details.past-stages, details.future-stages').forEach(element => {
       if (disclosures.has(element)) return;
       const summary = element.querySelector(':scope > summary');
-      const panel = element.querySelector(':scope > .stage-details, :scope > .past-stages-content');
+      const panel = element.querySelector(':scope > .stage-details, :scope > .past-stages-content, :scope > .future-stages-content');
       if (!summary || !panel) return;
       const state = { open: element.open, generation: 0, height: null, content: null };
       disclosures.set(element, state);
@@ -110,7 +110,7 @@
   }
 
   reduced.addEventListener('change', () => {
-    document.querySelectorAll('details.stage, details.past-stages').forEach(element => {
+    document.querySelectorAll('details.stage, details.past-stages, details.future-stages').forEach(element => {
       const state = disclosures.get(element);
       if (!state) return;
       state.generation++;
@@ -121,7 +121,7 @@
       if (arrow) arrow.style.transform = `rotate(${state.open ? 180 : 0}deg)`;
       element.style.height = '';
       element.style.overflow = '';
-      const panel = element.querySelector(':scope > .stage-details, :scope > .past-stages-content');
+      const panel = element.querySelector(':scope > .stage-details, :scope > .past-stages-content, :scope > .future-stages-content');
       panel?.removeAttribute('style');
     });
   });
@@ -161,5 +161,20 @@
     dialogAnimations.set(element, { surface, controls });
     return controls;
   }
-  window.ArcMotion = { tokens, attach, enter, cards, dialog, resetDialog, projectEnter, resetProject };
+  function calendarEnter(root, direction = 0) {
+    if (!root || reduced.matches) return;
+    const grid = root.querySelector('.calendar-grid');
+    const title = root.querySelector('.calendar-navigation h3');
+    const shift = direction === 0 ? 0 : direction > 0 ? 12 : -12;
+    const options = { duration: tokens.duration.standard * 1000, easing: `cubic-bezier(${tokens.ease.enter.join(',')})` };
+    grid?.animate([{ opacity: 0, transform: `translateX(${shift}px)` }, { opacity: 1, transform: 'translateX(0)' }], options);
+    title?.animate([{ opacity: 0, transform: `translateY(${direction > 0 ? 8 : direction < 0 ? -8 : 0}px)` }, { opacity: 1, transform: 'translateY(0)' }], options);
+    root.querySelectorAll('.calendar-event').forEach((element, index) => {
+      element.animate([
+        { opacity: 0, transform: 'translateY(6px)', filter: `blur(${tokens.blur.subtle}px)` },
+        { opacity: 1, transform: 'translateY(0)', filter: 'blur(0)' },
+      ], { ...options, delay: Math.min(index, 14) * tokens.stagger.item * 1000, fill: 'backwards' });
+    });
+  }
+  window.ArcMotion = { tokens, attach, enter, cards, dialog, resetDialog, projectEnter, resetProject, calendarEnter };
 })();

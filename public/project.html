@@ -4,7 +4,7 @@
 <title>Карточка проекта — реестр</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/project.css?v=passport-1">
+<link rel="stylesheet" href="/project.css?v=calendar-1">
 </head><body>
   <svg style="display:none" aria-hidden="true">
     <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 5 5"/></symbol>
@@ -39,8 +39,25 @@
       <div class="editor-actions"><button class="button" type="button" id="cancel-editor">Отмена</button><button class="button button-primary" id="save-editor" type="submit">Сохранить</button></div>
     </form>
   </dialog>
+  <dialog class="critical-dialog" id="critical-dialog" aria-labelledby="critical-dialog-title">
+    <form id="critical-form">
+      <h2 id="critical-dialog-title">Новая критическая точка</h2>
+      <p id="critical-dialog-project"></p>
+      <div class="field"><label for="critical-date">Дата</label><input id="critical-date" name="date" type="date" required></div>
+      <div class="field"><label for="critical-name">Событие</label><input id="critical-name" name="title" type="text" maxlength="120" placeholder="Например, ответ эксперта" required></div>
+      <div class="editor-error" id="critical-error" role="alert" hidden></div>
+      <div class="critical-actions"><button class="button critical-delete" id="critical-delete" type="button" hidden>Удалить</button><button class="button" id="critical-cancel" type="button">Отмена</button><button class="button button-primary" id="critical-save" type="submit">Сохранить</button></div>
+    </form>
+  </dialog>
+  <dialog class="calendar-day-dialog" id="calendar-day-dialog" aria-labelledby="calendar-day-title">
+    <div class="calendar-day-dialog-content">
+      <div class="dialog-head"><div><span class="overline">События дня</span><h2 id="calendar-day-title"></h2></div><button class="dialog-close" id="calendar-day-close" aria-label="Закрыть">×</button></div>
+      <ul class="calendar-day-list" id="calendar-day-events"></ul>
+      <button class="button button-primary" id="calendar-day-add" type="button">+ Критическая точка</button>
+    </div>
+  </dialog>
   <div class="save-toast" id="save-toast" role="status" hidden></div>
   <script src="/vendor/motion.js?v=bd4822a8b54e"></script>
-  <script src="/arc-motion.js?v=4cc12b8d0ad8"></script>
-  <script src="/project.js?v=passport-1"></script>
+  <script src="/arc-motion.js?v=calendar-1"></script>
+  <script src="/project.js?v=calendar-1"></script>
 </body></html>
