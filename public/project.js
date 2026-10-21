@@ -6,6 +6,9 @@
     let requestGeneration = 0;
     let editor = null;
     let editingCriticalId = null;
+    let calendarDrag = null;
+    let calendarSaving = false;
+    let suppressCalendarClickUntil = 0;
     const main = document.getElementById('main');
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const dateOnly = value => value ? String(value).slice(0,10) : '';
@@ -147,11 +150,13 @@
       for (const milestone of detail(p).milestones) {
         const plan = dateOnly(milestone.baseline_date);
         const forecast = dateOnly(milestone.forecast_date);
-        if (plan) events.push({ date: plan, title: milestone.stage_name, type: 'plan', label: 'План этапа' });
-        if (forecast && forecast !== plan) events.push({ date: forecast, title: milestone.stage_name, type: 'forecast', label: 'Прогноз этапа' });
+        if (plan) events.push({ key: `milestone:${milestone.stage_id}:baseline_date`, date: plan, title: milestone.stage_name, type: 'plan', label: 'План этапа', stageId: milestone.stage_id, field: 'baseline_date' });
+        if (forecast && forecast !== plan) events.push({ key: `milestone:${milestone.stage_id}:forecast_date`, date: forecast, title: milestone.stage_name, type: 'forecast', label: 'Прогноз этапа', stageId: milestone.stage_id, field: 'forecast_date' });
       }
+      if (p.planned_submission_date) events.push({ key: 'target:planned_submission_date', date: dateOnly(p.planned_submission_date), title: 'Подача заявки в ГИСП', type: 'target', label: 'План проекта', field: 'planned_submission_date' });
+      if (p.planned_registry_received_date) events.push({ key: 'target:planned_registry_received_date', date: dateOnly(p.planned_registry_received_date), title: 'Получение реестровой записи', type: 'target', label: 'План проекта', field: 'planned_registry_received_date' });
       for (const item of detail(p).criticalPoints || []) {
-        if (validDate(item.date)) events.push({ ...item, type: 'critical', label: 'Критическая точка' });
+        if (validDate(item.date)) events.push({ ...item, key: `critical:${item.id}`, type: 'critical', label: 'Критическая точка' });
       }
       return events;
     }
@@ -173,17 +178,18 @@
         const key = day.toISOString().slice(0, 10);
         const outside = day.getUTCMonth() !== month - 1;
         const events = byDay.get(key) || [];
-        return `<div class="calendar-day ${outside ? 'outside' : ''} ${key === today() ? 'is-today' : ''}">
+        return `<div class="calendar-day ${outside ? 'outside' : ''} ${key === today() ? 'is-today' : ''}" data-calendar-day="${key}">
           <button class="calendar-day-number" data-calendar-date="${key}" aria-label="Показать события за ${fmt(key)}">${day.getUTCDate()}</button>
           <div class="calendar-day-events">${events.map(event => event.type === 'critical'
-            ? `<button class="calendar-event critical" data-calendar-event-date="${key}" aria-label="${esc(event.title)}, критическая точка. Показать все события дня">${esc(event.title)}</button>`
-            : `<button class="calendar-event ${event.type}" data-calendar-event-date="${key}" aria-label="${esc(event.title)}, ${esc(event.label)}. Показать все события дня"><i aria-hidden="true"></i><span>${esc(event.title)}</span></button>`).join('')}</div>
+            ? `<button class="calendar-event critical" data-calendar-key="${esc(event.key)}" data-calendar-event-date="${key}" aria-label="${esc(event.title)}, критическая точка. Показать события дня или перетащить на другую дату">${esc(event.title)}</button>`
+            : `<button class="calendar-event ${event.type}" data-calendar-key="${esc(event.key)}" data-calendar-event-date="${key}" aria-label="${esc(event.title)}, ${esc(event.label)}. Показать события дня или перетащить на другую дату"><i aria-hidden="true"></i><span>${esc(event.title)}</span></button>`).join('')}</div>
         </div>`;
       }).join('');
       return `<section class="project-calendar" id="project-calendar" aria-labelledby="project-calendar-title">
-        <div class="project-calendar-head"><div><span class="overline">Планирование</span><h2 id="project-calendar-title">Календарь проекта</h2><p>Плановые этапы подставляются из маршрута. Критические точки можно отметить вручную.</p></div><button class="button button-primary" data-calendar-add>+ Критическая точка</button></div>
-        <div class="project-calendar-toolbar"><div class="calendar-navigation"><button class="button calendar-nav" data-calendar-shift="-1" aria-label="Предыдущий месяц">←</button><h3 aria-live="polite">${esc(title)}</h3><button class="button calendar-nav" data-calendar-shift="1" aria-label="Следующий месяц">→</button><button class="button calendar-today" data-calendar-today>Сегодня</button></div><div class="calendar-key"><span><i class="plan"></i>План этапа</span><span><i class="forecast"></i>Прогноз</span><span><i class="critical"></i>Критическая точка</span></div></div>
+        <div class="project-calendar-head"><div><span class="overline">Планирование</span><h2 id="project-calendar-title">Календарь проекта</h2><p>Перетащите маркер на другую дату. Изменить дату можно и через просмотр дня.</p></div><button class="button button-primary" data-calendar-add>+ Критическая точка</button></div>
+        <div class="project-calendar-toolbar"><div class="calendar-navigation"><button class="button calendar-nav" data-calendar-shift="-1" aria-label="Предыдущий месяц">←</button><h3 aria-live="polite">${esc(title)}</h3><button class="button calendar-nav" data-calendar-shift="1" aria-label="Следующий месяц">→</button><button class="button calendar-today" data-calendar-today>Сегодня</button></div><div class="calendar-key"><span><i class="plan"></i>План этапа</span><span><i class="forecast"></i>Прогноз</span><span><i class="target"></i>План проекта</span><span><i class="critical"></i>Критическая точка</span></div></div>
         <div class="calendar-scroll"><div class="calendar-board"><div class="calendar-weekdays">${weekdays.map(day => `<span>${day}</span>`).join('')}</div><div class="calendar-grid">${daysHtml}</div></div></div>
+        <p class="calendar-feedback" id="calendar-feedback" role="status" aria-live="polite"></p>
       </section>`;
     }
     function refreshCalendar(direction = 0) {
@@ -221,7 +227,7 @@
       const items = calendarEvents(p).filter(item => item.date === date);
       document.getElementById('calendar-day-title').textContent = fmt(date);
       document.getElementById('calendar-day-events').innerHTML = items.length
-        ? items.map(item => `<li class="calendar-day-item ${item.type}"><span class="calendar-day-item-kind">${esc(item.label)}</span><p>${esc(item.title)}</p>${item.type === 'critical' ? `<button class="button" data-day-edit="${Number(item.id)}">Изменить точку</button>` : ''}</li>`).join('')
+        ? items.map(item => `<li class="calendar-day-item ${item.type}"><span class="calendar-day-item-kind">${esc(item.label)}</span><p>${esc(item.title)}</p>${item.type === 'critical' ? `<button class="button" data-day-edit="${Number(item.id)}">Изменить точку</button>` : `<button class="button" data-day-edit-event="${esc(item.key)}">Изменить дату</button>`}</li>`).join('')
         : '<li class="empty-note">На эту дату событий пока нет.</li>';
       const add = document.getElementById('calendar-day-add');
       add.dataset.date = date;
@@ -232,6 +238,123 @@
     function closeCalendarDay() {
       const dialog = document.getElementById('calendar-day-dialog');
       if (dialog.open) { window.ArcMotion?.resetDialog(dialog); dialog.close(); }
+    }
+    function calendarFeedback(message, error = false) {
+      const element = document.getElementById('calendar-feedback');
+      if (!element) return;
+      element.textContent = message;
+      element.classList.toggle('error', error);
+      element.setAttribute('role', error ? 'alert' : 'status');
+    }
+    async function moveCalendarEvent(key, date) {
+      const p = currentProject();
+      const item = p && calendarEvents(p).find(event => event.key === key);
+      if (!item || !validDate(date) || item.date === date || calendarSaving) return;
+      calendarSaving = true;
+      calendarFeedback('Сохраняем новую дату…');
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (item.type === 'critical') {
+          const result = await api('/api/projects/' + p.id + '/critical-points', {
+            method: 'PUT', headers, body: JSON.stringify({ point_id: item.id, date, title: item.title }),
+          });
+          const index = detail(p).criticalPoints.findIndex(point => Number(point.id) === Number(item.id));
+          if (index >= 0) detail(p).criticalPoints[index] = result.point;
+        } else if (item.type === 'target') {
+          const payload = {
+            planned_submission_date: dateOnly(p.planned_submission_date) || null,
+            planned_registry_received_date: dateOnly(p.planned_registry_received_date) || null,
+          };
+          payload[item.field] = date;
+          const result = await api('/api/projects/' + p.id + '/targets', { method: 'PUT', headers, body: JSON.stringify(payload) });
+          Object.assign(p, result.targets);
+        } else {
+          const milestone = detail(p).milestones.find(value => Number(value.stage_id) === Number(item.stageId));
+          if (!milestone) throw new Error('Этап больше не найден. Обновите страницу.');
+          const payload = {
+            stage_id: milestone.stage_id,
+            baseline_date: dateOnly(milestone.baseline_date) || null,
+            forecast_date: dateOnly(milestone.forecast_date) || null,
+            actual_date: dateOnly(milestone.actual_date) || null,
+            delay_reason: milestone.delay_reason || null,
+            comment: milestone.comment || null,
+          };
+          payload[item.field] = date;
+          const result = await api('/api/milestones/' + p.id, { method: 'PUT', headers, body: JSON.stringify(payload) });
+          Object.assign(milestone, result.milestone);
+        }
+        if (state.id !== p.id) return;
+        const scrollY = window.scrollY;
+        renderProjects();
+        renderMain();
+        window.scrollTo(0, scrollY);
+        calendarFeedback(`${item.label}: «${item.title}» перенесено на ${fmt(date)}.`);
+        const moved = [...main.querySelectorAll('[data-calendar-key]')].find(element => element.dataset.calendarKey === key);
+        moved?.focus({ preventScroll: true });
+        window.ArcMotion?.calendarPlaced(moved);
+      } catch (error) {
+        calendarFeedback(`Не удалось перенести событие: ${error.message}`, true);
+      } finally { calendarSaving = false; }
+    }
+    function clearCalendarDrag() {
+      if (!calendarDrag) return;
+      calendarDrag.source?.classList.remove('is-dragging');
+      calendarDrag.target?.classList.remove('is-drop-target');
+      calendarDrag.ghost?.remove();
+      calendarDrag = null;
+    }
+    function startCalendarDrag(event) {
+      const source = event.target.closest('[data-calendar-key]');
+      if (!source || calendarSaving || event.button !== 0 || !event.isPrimary) return;
+      const p = currentProject();
+      const item = p && calendarEvents(p).find(value => value.key === source.dataset.calendarKey);
+      if (!item) return;
+      calendarDrag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, source, item, active: false, target: null, ghost: null };
+    }
+    function updateCalendarDrag(event) {
+      const drag = calendarDrag;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      if (!drag.active && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 7) return;
+      if (!drag.active) {
+        drag.active = true;
+        drag.source.classList.add('is-dragging');
+        calendarFeedback('Перетащите событие на нужную дату и отпустите.');
+        const ghost = document.createElement('div');
+        ghost.className = `calendar-drag-ghost ${drag.item.type}`;
+        ghost.textContent = drag.item.title;
+        ghost.setAttribute('aria-hidden', 'true');
+        document.body.append(ghost);
+        drag.ghost = ghost;
+      }
+      event.preventDefault();
+      drag.ghost.style.transform = `translate(${event.clientX + 14}px, ${event.clientY + 14}px)`;
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-calendar-day]') || null;
+      if (target !== drag.target) {
+        drag.target?.classList.remove('is-drop-target');
+        drag.target = target;
+        drag.target?.classList.add('is-drop-target');
+        if (target) calendarFeedback(`Новая дата: ${fmt(target.dataset.calendarDay)}.`);
+      }
+      if (event.clientY < 70) window.scrollBy(0, -8);
+      else if (event.clientY > window.innerHeight - 70) window.scrollBy(0, 8);
+      const scroll = document.querySelector('.calendar-scroll');
+      if (scroll) {
+        const rect = scroll.getBoundingClientRect();
+        if (event.clientX > rect.right - 35 && event.clientX < rect.right) scroll.scrollLeft += 12;
+        else if (event.clientX < rect.left + 35 && event.clientX > rect.left) scroll.scrollLeft -= 12;
+      }
+    }
+    function finishCalendarDrag(event) {
+      const drag = calendarDrag;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const date = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-calendar-day]')?.dataset.calendarDay;
+      const key = drag.item.key;
+      const active = drag.active;
+      clearCalendarDrag();
+      if (!active) return;
+      suppressCalendarClickUntil = Date.now() + 350;
+      if (date) moveCalendarEvent(key, date);
+      else calendarFeedback('Перетащите событие на ячейку календаря.');
     }
     function renderMain() {
       const p = currentProject();
@@ -556,7 +679,15 @@
         alert.hidden = false;
       } finally { button.disabled = false; }
     });
+    document.addEventListener('pointerdown', startCalendarDrag);
+    document.addEventListener('pointermove', updateCalendarDrag, { passive: false });
+    document.addEventListener('pointerup', finishCalendarDrag);
+    document.addEventListener('pointercancel', clearCalendarDrag);
     document.addEventListener('click', async event => {
+      if (Date.now() < suppressCalendarClickUntil && event.target.closest('.project-calendar')) {
+        event.preventDefault();
+        return;
+      }
       const project = event.target.closest('[data-project]');
       if (project) { selectProject(project.dataset.project); return; }
       const month = event.target.closest('[data-calendar-shift]');
@@ -569,6 +700,14 @@
       if (event.target.closest('[data-calendar-today]')) { const direction = state.calendarMonth < today().slice(0, 7) ? 1 : -1; state.calendarMonth = today().slice(0, 7); refreshCalendar(direction); return; }
       const dayEdit = event.target.closest('[data-day-edit]');
       if (dayEdit) { const id = dayEdit.dataset.dayEdit; closeCalendarDay(); openCriticalDialog(today(), id); return; }
+      const planEdit = event.target.closest('[data-day-edit-event]');
+      if (planEdit) {
+        const p = currentProject();
+        const item = p && calendarEvents(p).find(value => value.key === planEdit.dataset.dayEditEvent);
+        closeCalendarDay();
+        if (item) openEditor(item.type === 'target' ? 'targets' : 'milestone', item.stageId);
+        return;
+      }
       const calendarEvent = event.target.closest('[data-calendar-event-date]');
       if (calendarEvent) { openCalendarDay(calendarEvent.dataset.calendarEventDate); return; }
       const day = event.target.closest('[data-calendar-date]');

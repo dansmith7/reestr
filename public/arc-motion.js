@@ -176,5 +176,12 @@
       ], { ...options, delay: Math.min(index, 14) * tokens.stagger.item * 1000, fill: 'backwards' });
     });
   }
-  window.ArcMotion = { tokens, attach, enter, cards, dialog, resetDialog, projectEnter, resetProject, calendarEnter };
+  function calendarPlaced(element) {
+    if (!element || reduced.matches) return;
+    element.animate([
+      { opacity: 0.65, transform: 'translateY(-8px) scale(.97)' },
+      { opacity: 1, transform: 'translateY(0) scale(1)' },
+    ], { duration: tokens.spring.smooth.visualDuration * 1000, easing: `cubic-bezier(${tokens.ease.enter.join(',')})` });
+  }
+  window.ArcMotion = { tokens, attach, enter, cards, dialog, resetDialog, projectEnter, resetProject, calendarEnter, calendarPlaced };
 })();
