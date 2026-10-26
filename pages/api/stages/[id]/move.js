@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   try {
     const { direction } = req.body || {};
     const p = await ensureSchema();
-    const rows = (await p.query('SELECT * FROM stages ORDER BY position ASC')).rows;
+    const rows = (await p.query('SELECT * FROM stages WHERE archived = false ORDER BY position ASC')).rows;
     const idx = rows.findIndex((r) => String(r.id) === String(id));
     if (idx === -1) return res.status(404).json({ error: 'этап не найден' });
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1;

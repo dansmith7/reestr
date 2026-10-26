@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   try {
     const snapshotDate = normalizeSnapshotDate(req.query.date);
     const p = await ensureSchema();
-    const stages = (await p.query('SELECT * FROM stages ORDER BY position ASC')).rows;
+    const stages = (await p.query('SELECT * FROM stages WHERE archived = false ORDER BY position ASC')).rows;
     const projectRows = (await p.query(
       `SELECT * FROM projects
        WHERE archived = false

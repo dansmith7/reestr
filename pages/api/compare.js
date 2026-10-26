@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   if (!date) return res.status(400).json({ error: 'no date' });
   try {
     const p = await ensureSchema();
-    const totalRes = await p.query('SELECT COUNT(*)::int AS c FROM stages');
+    const totalRes = await p.query('SELECT COUNT(*)::int AS c FROM stages WHERE archived = false');
     const total = totalRes.rows[0].c;
     const projects = (await p.query(
       `SELECT *
@@ -29,7 +29,10 @@ export default async function handler(req, res) {
       const current = await serializeProjectAt(p, proj, currentDate);
 
       const pastRes = await p.query(
-        `SELECT sl.*, s.name AS stage_name, s.position AS stage_position
+        `SELECT sl.*, s.name AS stage_name,
+                CASE WHEN s.archived THEN COALESCE((
+                  SELECT MAX(position) FROM stages WHERE archived = false AND position < s.position
+                ), 0) ELSE s.position END AS stage_position
          FROM status_log sl JOIN stages s ON s.id = sl.stage_id
          WHERE sl.project_id = $1 AND sl.created_at < ($2::date + interval '1 day')
          ORDER BY sl.created_at DESC, sl.id DESC LIMIT 1`,

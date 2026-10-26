@@ -15,6 +15,8 @@ export default async function handler(req, res) {
     }
     const date = normalizeSnapshotDate(effective_date);
     const p = await ensureSchema();
+    const stage = await p.query('SELECT id FROM stages WHERE id = $1 AND archived = false', [stage_id]);
+    if (stage.rows.length === 0) return res.status(400).json({ error: 'этап не найден в текущем маршруте' });
     const pr = await p.query(
       `INSERT INTO projects (name, created_at)
        VALUES ($1, COALESCE(($2::date + time '12:00') AT TIME ZONE 'UTC', now()))

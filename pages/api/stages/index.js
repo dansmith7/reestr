@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     const { name } = req.body || {};
     if (!name || !name.trim()) return res.status(400).json({ error: 'укажите название этапа' });
     const p = await ensureSchema();
-    const maxRes = await p.query('SELECT COALESCE(MAX(position), -1) AS m FROM stages');
+    const maxRes = await p.query('SELECT COALESCE(MAX(position), -1) AS m FROM stages WHERE archived = false');
     const pos = maxRes.rows[0].m + 1;
     const r = await p.query(
       'INSERT INTO stages (position, name) VALUES ($1, $2) RETURNING id',

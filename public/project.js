@@ -26,7 +26,10 @@
     const detail = p => data.details[String(p.id)] || { history: [], milestones: [], criticalPoints: [] };
     const position = p => p.stage_index == null ? -1 : Number(p.stage_index);
     let orderedStages = [];
-    const stageOrdinal = p => orderedStages.findIndex(s => Number(s.id) === Number(p.stage_id));
+    const stageOrdinal = p => {
+      const index = orderedStages.findIndex(s => Number(s.id) === Number(p.stage_id));
+      return index >= 0 ? index : position(p);
+    };
     const finished = p => /реестр получен/i.test(p.status || '');
     const icon = id => `<svg aria-hidden="true"><use href="#icon-${id}"/></svg>`;
     const rubles = value => value === null || value === undefined || value === '' ? '—' : `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(value))} ₽`;
@@ -77,7 +80,7 @@
     }
     const phases = [
       { label:'Подготовка', from:0, to:4 }, { label:'Подача заявки', from:5, to:6 },
-      { label:'Проверки', from:7, to:11 }, { label:'Экспертиза', from:12, to:14 }, { label:'Реестровая запись', from:15, to:Infinity }
+      { label:'Проверки', from:7, to:10 }, { label:'Экспертиза', from:11, to:13 }, { label:'Реестровая запись', from:14, to:Infinity }
     ];
     function stageDetails(p,s,m) {
       const delta = days(m.baseline_date, m.actual_date || m.forecast_date);

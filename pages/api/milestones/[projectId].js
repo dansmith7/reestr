@@ -26,7 +26,7 @@ export default async function handler(req, res) {
         `SELECT sm.*, s.name AS stage_name, s.position AS stage_position
          FROM stage_milestones sm
          JOIN stages s ON s.id = sm.stage_id
-         WHERE sm.project_id = $1
+         WHERE sm.project_id = $1 AND s.archived = false
          ORDER BY s.position ASC`,
         [projectId]
       );
@@ -67,6 +67,7 @@ export default async function handler(req, res) {
              comment = $7,
              updated_at = now()
          WHERE project_id = $1 AND stage_id = $2
+           AND stage_id IN (SELECT id FROM stages WHERE archived = false)
          RETURNING *`,
         [
           projectId,

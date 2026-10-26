@@ -14,6 +14,8 @@ export default async function handler(req, res) {
     }
     const date = normalizeSnapshotDate(effective_date);
     const p = await ensureSchema();
+    const stage = await p.query('SELECT id FROM stages WHERE id = $1 AND archived = false', [stage_id]);
+    if (stage.rows.length === 0) return res.status(400).json({ error: 'этап не найден в текущем маршруте' });
     await ensureMilestonesForProject(p, project_id);
     await p.query(
       `INSERT INTO status_log (project_id, stage_id, timing, comment, created_at)
