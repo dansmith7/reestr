@@ -1,0 +1,208 @@
+.theme-toggle {
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  min-height:42px; padding:8px 14px; border:1px solid var(--line,var(--border));
+  border-radius:999px; background:var(--paper,var(--white)); color:var(--ink,var(--text-dark));
+  font:700 13px/1.2 Mulish,sans-serif; white-space:nowrap; cursor:pointer;
+  transition:background-color .24s ease,border-color .24s ease,color .24s ease,transform .16s ease;
+}
+.theme-toggle:hover { transform:translateY(-1px); border-color:var(--green-dark); }
+.theme-toggle:active { transform:translateY(0); }
+.theme-toggle:focus-visible { outline:2px solid var(--green); outline-offset:3px; }
+.theme-toggle-icon { font-size:19px; line-height:1; font-weight:400; }
+
+:root[data-theme="dark"] {
+  color-scheme:dark;
+  --ink:#f1f8ef; --muted:#a9bba9; --line:#304434; --paper:#141e17; --canvas:#090f0b;
+  --green:#8ce74a; --green-dark:#a5f16f; --green-soft:#203b22;
+  --orange:#e9bc82; --orange-soft:#362819; --red:#ff8c83;
+  --grey-bg:#0a110c; --text:#d7e2d6; --text-dark:#f1f8ef; --border:#304434;
+  --white:#141e17; --red-soft:#3a2524;
+}
+:root[data-theme="dark"] .theme-toggle { background:#1b3020; border-color:#3b633d; color:#c4f7a4; }
+:root[data-theme="dark"] .theme-toggle:hover { background:#254429; }
+
+/* Общий дашборд */
+:root[data-theme="dark"] body { background:var(--canvas); color:var(--text); }
+:root[data-theme="dark"] .subtitle,
+:root[data-theme="dark"] .stage,
+:root[data-theme="dark"] .stage .num,
+:root[data-theme="dark"] .stage-manage-row button,
+:root[data-theme="dark"] .timing-flag,
+:root[data-theme="dark"] .detail-item .k,
+:root[data-theme="dark"] .history-title,
+:root[data-theme="dark"] .history-item .h-date,
+:root[data-theme="dark"] .field label,
+:root[data-theme="dark"] .milestone-row.head,
+:root[data-theme="dark"] .milestone-note,
+:root[data-theme="dark"] .target-card .k,
+:root[data-theme="dark"] .footer-note,
+:root[data-theme="dark"] .section-title span[style] { color:var(--muted)!important; }
+:root[data-theme="dark"] .project:hover { border-color:#53745a; box-shadow:0 12px 30px #0006; }
+:root[data-theme="dark"] .project.stale { border-color:#86524d; }
+:root[data-theme="dark"] .stage-tag,
+:root[data-theme="dark"] .diff-badge.same { color:var(--muted); }
+:root[data-theme="dark"] .stage .dot { border-color:#536757; }
+:root[data-theme="dark"] .stage.active .dot { border-color:var(--green); }
+:root[data-theme="dark"] .waiting-flag { background:#392d1b; color:#f2c57d; }
+:root[data-theme="dark"] .waiting-flag .dot-y { background:#f2c57d; }
+:root[data-theme="dark"] .stale-flag,
+:root[data-theme="dark"] .diff-badge.stuck,
+:root[data-theme="dark"] .milestone-alert { color:#ffb4ad; }
+:root[data-theme="dark"] .btn-primary { color:#0b180a; }
+:root[data-theme="dark"] .btn-danger { color:#ffb4ad; }
+:root[data-theme="dark"] .btn-ghost { color:var(--muted); }
+:root[data-theme="dark"] .legend-title .chip,
+:root[data-theme="dark"] .project-status,
+:root[data-theme="dark"] .diff-badge.moved { color:#b9f593; }
+:root[data-theme="dark"] .modal { background:var(--paper); color:var(--text); border:1px solid var(--line); box-shadow:0 24px 70px #0008; }
+:root[data-theme="dark"] .field input,
+:root[data-theme="dark"] .field select,
+:root[data-theme="dark"] .field textarea { background:#0f1912; color:var(--ink); border-color:var(--line); }
+:root[data-theme="dark"] .field input::placeholder,
+:root[data-theme="dark"] .field textarea::placeholder { color:var(--muted); }
+:root[data-theme="dark"] .stage-mgmt-row .mini-btn,
+:root[data-theme="dark"] .compare-chip button { color:var(--text); }
+:root[data-theme="dark"] .diff-detail { color:var(--text); }
+:root[data-theme="dark"] .milestone-date.empty,
+:root[data-theme="dark"] .detail-item .v.empty,
+:root[data-theme="dark"] .target-card .v.empty { color:var(--muted); }
+:root[data-theme="dark"] .toast { background:#203023; color:var(--ink); border:1px solid var(--line); }
+:root[data-theme="dark"] .toast .mark { color:#081207; }
+
+/* Карточка проекта */
+:root[data-theme="dark"] .topbar { background:#0e1710; }
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .button,
+:root[data-theme="dark"] .project-button.active,
+:root[data-theme="dark"] .calendar-scroll,
+:root[data-theme="dark"] .calendar-day,
+:root[data-theme="dark"] .calendar-drag-ghost { background:var(--paper); color:var(--text); }
+:root[data-theme="dark"] .button:hover { background:#1c2b1f; border-color:#55775a; }
+:root[data-theme="dark"] .button-primary,
+:root[data-theme="dark"] .button-primary:hover { background:var(--green); border-color:var(--green); color:#091509; }
+:root[data-theme="dark"] .button-danger,
+:root[data-theme="dark"] .critical-actions .critical-delete { background:var(--red-soft); color:#ffb4ad; border-color:#75413d; }
+:root[data-theme="dark"] .project-button:hover { background:#1b2a1d; }
+:root[data-theme="dark"] .project-button.active { border-color:#426a41; }
+:root[data-theme="dark"] .project-button.active .project-label,
+:root[data-theme="dark"] .project-name-text,
+:root[data-theme="dark"] .key-date-head,
+:root[data-theme="dark"] .key-date strong,
+:root[data-theme="dark"] .stage-title,
+:root[data-theme="dark"] .stage-details b,
+:root[data-theme="dark"] .note-value,
+:root[data-theme="dark"] .history-item b,
+:root[data-theme="dark"] .route-date,
+:root[data-theme="dark"] .phase-heading,
+:root[data-theme="dark"] .calendar-day-number { color:var(--text); }
+:root[data-theme="dark"] .brand-caption,
+:root[data-theme="dark"] .breadcrumb,
+:root[data-theme="dark"] .project-meta,
+:root[data-theme="dark"] .next-line,
+:root[data-theme="dark"] .sidebar-note,
+:root[data-theme="dark"] .project-label small,
+:root[data-theme="dark"] .project-progress,
+:root[data-theme="dark"] .overline,
+:root[data-theme="dark"] .key-date small,
+:root[data-theme="dark"] .key-date-head svg,
+:root[data-theme="dark"] .section-title small,
+:root[data-theme="dark"] .route-subtitle,
+:root[data-theme="dark"] .route-labels,
+:root[data-theme="dark"] .stage-label,
+:root[data-theme="dark"] .stage-details,
+:root[data-theme="dark"] .legend,
+:root[data-theme="dark"] .note-label,
+:root[data-theme="dark"] .empty-note,
+:root[data-theme="dark"] .upcoming-item small,
+:root[data-theme="dark"] .history-item time,
+:root[data-theme="dark"] .history-item p,
+:root[data-theme="dark"] .footer,
+:root[data-theme="dark"] .editor-subtitle,
+:root[data-theme="dark"] .passport-card dt,
+:root[data-theme="dark"] .project-calendar-head p,
+:root[data-theme="dark"] .calendar-key,
+:root[data-theme="dark"] .calendar-weekdays span,
+:root[data-theme="dark"] .critical-dialog p,
+:root[data-theme="dark"] .calendar-day-item-kind { color:var(--muted); }
+:root[data-theme="dark"] .project-button .project-dot:not(.attention) { background:var(--green); }
+:root[data-theme="dark"] #search,
+:root[data-theme="dark"] .snapshot input,
+:root[data-theme="dark"] .field input,
+:root[data-theme="dark"] .field textarea,
+:root[data-theme="dark"] .field select { background:#0f1912; color:var(--ink); border-color:var(--line); }
+:root[data-theme="dark"] #search::placeholder { color:var(--muted); }
+:root[data-theme="dark"] .status,
+:root[data-theme="dark"] .current-card .overline,
+:root[data-theme="dark"] .stage.current .stage-label,
+:root[data-theme="dark"] .stage.current .stage-title,
+:root[data-theme="dark"] .past-action,
+:root[data-theme="dark"] .calendar-today,
+:root[data-theme="dark"] .passport-card a,
+:root[data-theme="dark"] .key-date strong.forecast-on-track,
+:root[data-theme="dark"] .route-date.forecast-on-track,
+:root[data-theme="dark"] .key-date strong.fact-date,
+:root[data-theme="dark"] .calendar-feedback { color:var(--green-dark); }
+:root[data-theme="dark"] .passport-card a:hover { color:#d5ffb8; }
+:root[data-theme="dark"] .alert { background:var(--orange-soft); color:#f2c98e; border-color:#72522d; }
+:root[data-theme="dark"] .route-labels,
+:root[data-theme="dark"] .calendar-weekdays { background:#19251b; }
+:root[data-theme="dark"] .phase-line { background:var(--line); }
+:root[data-theme="dark"] .stage.current { background:var(--green-soft); border-color:#456e45; }
+:root[data-theme="dark"] .stage summary:hover { background:#ffffff0a; }
+:root[data-theme="dark"] .stage-node { background:#152219; border-color:#547159; color:var(--muted); }
+:root[data-theme="dark"] .stage.actual .stage-node { background:var(--green-soft); border-color:#689665; color:var(--green-dark); }
+:root[data-theme="dark"] .stage.current .stage-node { background:var(--green); border-color:var(--green); color:#071107; box-shadow:0 0 0 4px #2a4b2c; }
+:root[data-theme="dark"] .stage.current.actual .stage-node { color:#071107; }
+:root[data-theme="dark"] .stage.current .stage-details { border-color:#4a6b4a; }
+:root[data-theme="dark"] .route-date.blank,
+:root[data-theme="dark"] .calendar-day.outside .calendar-day-number,
+:root[data-theme="dark"] .key-date .missing { color:var(--muted); }
+:root[data-theme="dark"] .past-stages,
+:root[data-theme="dark"] .future-stages,
+:root[data-theme="dark"] .historical-note { background:#111b14; }
+:root[data-theme="dark"] .past-stages > summary,
+:root[data-theme="dark"] .future-stages > summary { color:var(--text); }
+:root[data-theme="dark"] .past-stages > summary:hover,
+:root[data-theme="dark"] .future-stages > summary:hover { background:#1c2a1e; }
+:root[data-theme="dark"] .past-stages-content .stage,
+:root[data-theme="dark"] .future-stages-content,
+:root[data-theme="dark"] .past-count { background:var(--paper); color:var(--text); }
+:root[data-theme="dark"] .calendar { background:#1c2b1f; color:var(--muted); }
+:root[data-theme="dark"] .history-item:before { background:#6b896e; border-color:var(--paper); }
+:root[data-theme="dark"] .history-item:first-child:before { background:var(--green); }
+:root[data-theme="dark"] .dialog-close { background:#203023; color:var(--ink); }
+:root[data-theme="dark"] .editor-dialog,
+:root[data-theme="dark"] .history-dialog,
+:root[data-theme="dark"] .critical-dialog,
+:root[data-theme="dark"] .calendar-day-dialog { background:var(--paper); color:var(--text); border-color:var(--line); }
+:root[data-theme="dark"] .editor-error,
+:root[data-theme="dark"] .error-state { background:var(--red-soft); color:#ffb4ad; }
+:root[data-theme="dark"] .save-toast { background:#213123; color:var(--ink); border:1px solid var(--line); }
+:root[data-theme="dark"] .calendar-day.outside { background:#101812; }
+:root[data-theme="dark"] .calendar-day.is-today { background:#1c3420; }
+:root[data-theme="dark"] .calendar-day-number:hover { background:#315637; }
+:root[data-theme="dark"] .calendar-day.is-today .calendar-day-number { background:var(--green); color:#071107; }
+:root[data-theme="dark"] .calendar-event.plan { background:#264929; color:#e7f8df; }
+:root[data-theme="dark"] .calendar-event.plan:hover { background:#315c35; }
+:root[data-theme="dark"] .calendar-event.forecast { background:#473520; color:#f5d7aa; }
+:root[data-theme="dark"] .calendar-event.forecast:hover { background:#5a4429; }
+:root[data-theme="dark"] .calendar-event.target { background:#31532b; color:#eefbe8; }
+:root[data-theme="dark"] .calendar-event.target:hover { background:#406b38; }
+:root[data-theme="dark"] .calendar-event.critical { background:#492927; color:#ffd7d3; }
+:root[data-theme="dark"] .calendar-event.critical:hover { background:#603532; }
+:root[data-theme="dark"] .calendar-day.is-drop-target { background:var(--green-soft); box-shadow:inset 0 0 0 2px var(--green); }
+:root[data-theme="dark"] .calendar-feedback.error { color:#ffb4ad; }
+:root[data-theme="dark"] .calendar-day-item p { color:var(--ink); }
+:root[data-theme="dark"] .calendar-day-item.plan { border-color:var(--green); }
+:root[data-theme="dark"] .calendar-day-item.forecast { border-color:var(--orange); }
+:root[data-theme="dark"] .calendar-day-item.critical { border-color:var(--red); }
+:root[data-theme="dark"] .calendar-day-item.target { border-color:var(--green-dark); }
+:root[data-theme="dark"] .calendar-drag-ghost { box-shadow:0 12px 30px #0009; }
+
+@media (max-width:520px) {
+  .theme-toggle { width:42px; padding:7px; }
+  .theme-toggle-label { display:none; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .theme-toggle { transition:none; }
+}

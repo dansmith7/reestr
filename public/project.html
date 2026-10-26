@@ -4,7 +4,9 @@
 <title>Карточка проекта — реестр</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/project.css?v=calendar-drag-1">
+<script src="/theme.js?v=dark-1"></script>
+<link rel="stylesheet" href="/project.css?v=dark-1">
+<link rel="stylesheet" href="/theme.css?v=dark-1">
 </head><body>
   <svg style="display:none" aria-hidden="true">
     <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 5 5"/></symbol>
@@ -14,7 +16,7 @@
   </svg>
   <header class="topbar">
     <a class="brand" href="/index.html" id="overview-brand"><div class="brand-mark" aria-hidden="true"></div><div class="brand-name">Реестровые записи</div><div class="brand-divider"></div><div class="brand-caption">Карточка проекта</div></a>
-    <div class="page-tools"><a class="button" href="/index.html" id="overview-link">← Все проекты</a><label class="snapshot" for="snapshot-date"><span id="snapshot-label">Срез на дату</span><input type="date" id="snapshot-date" required></label></div>
+    <div class="page-tools"><a class="button" href="/index.html" id="overview-link">← Все проекты</a><label class="snapshot" for="snapshot-date"><span id="snapshot-label">Срез на дату</span><input type="date" id="snapshot-date" required></label><button class="theme-toggle" type="button" data-theme-toggle aria-label="Включить тёмную тему"><span class="theme-toggle-icon" aria-hidden="true">☾</span><span class="theme-toggle-label">Тёмная тема</span></button></div>
   </header>
   <div class="layout">
     <aside class="sidebar" aria-label="Выбор проекта">

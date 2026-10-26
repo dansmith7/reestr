@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="/theme.js?v=dark-1"></script>
 <style>
   :root{
     --green:#60D812;
@@ -174,6 +175,7 @@
   a.project:focus-visible{outline:3px solid var(--green);outline-offset:4px;}
   .project-open-label{display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px solid var(--border);color:var(--green-dark);font-size:13px;font-weight:800;}
 </style>
+<link rel="stylesheet" href="/theme.css?v=dark-1">
 </head>
 <body>
 <div class="wrap">
@@ -187,6 +189,7 @@
       </div>
     </div>
     <div class="header__right">
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Включить тёмную тему"><span class="theme-toggle-icon" aria-hidden="true">☾</span><span class="theme-toggle-label">Тёмная тема</span></button>
       <a class="btn btn-secondary" href="/admin">Админка</a>
       <input class="date-input" type="date" id="snapshotDate">
       <button class="btn btn-secondary" id="btnCompareWeek">Сравнить с прошлой неделей</button>
