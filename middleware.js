@@ -8,6 +8,11 @@ export const config = {
 };
 
 export default function middleware(req) {
+  // Vercel Blob sends its signed upload-completion callback without Basic Auth.
+  // Token issuance is checked in the API handler itself.
+  if (/^\/api\/projects\/\d+\/documents-upload$/.test(req.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
   const expected = process.env.APP_PASSWORD || 'reestr2026';
   const auth = req.headers.get('authorization');
 
